@@ -61,10 +61,7 @@ Generate 2-4 realistic weekly tasks.`;
     // Hide placeholder, show real input
     chatInputPlaceholder.classList.add('hidden');
     chatInput.classList.add('visible');
-    // Show send button, hide mic button
-    chatSendBtn.classList.remove('hidden');
-    chatMicBtn.classList.add('hidden');
-    // Focus input
+    // Keep mic visible, send hidden until user types
     chatInput.focus();
   }
 
@@ -76,6 +73,17 @@ Generate 2-4 realistic weekly tasks.`;
     chatSendBtn.classList.add('hidden');
     chatMicBtn.classList.remove('hidden');
   }
+
+  // Toggle mic/send based on input content
+  chatInput.addEventListener('input', () => {
+    if (chatInput.value.trim().length > 0) {
+      chatMicBtn.classList.add('hidden');
+      chatSendBtn.classList.remove('hidden');
+    } else {
+      chatSendBtn.classList.add('hidden');
+      chatMicBtn.classList.remove('hidden');
+    }
+  });
 
   // --- Send Message ---
   chatSendBtn.addEventListener('click', sendMessage);
