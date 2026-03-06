@@ -887,4 +887,43 @@ Generate 2-4 realistic weekly tasks.`;
       appendMessage(errorMsg, 'ai');
     }
   }
+  // --- Quick Record Menu ---
+  const quickRecordOverlay = document.getElementById('quickRecordOverlay');
+  const quickRecordClose = document.getElementById('quickRecordClose');
+  const chatToolBtn = document.querySelector('.chat-tool-btn');
+
+  if (chatToolBtn && quickRecordOverlay) {
+    chatToolBtn.addEventListener('click', () => {
+      quickRecordOverlay.classList.add('active');
+    });
+
+    quickRecordClose.addEventListener('click', () => {
+      quickRecordOverlay.classList.remove('active');
+    });
+
+    quickRecordOverlay.addEventListener('click', (e) => {
+      if (e.target === quickRecordOverlay) {
+        quickRecordOverlay.classList.remove('active');
+      }
+    });
+
+    document.querySelectorAll('.quick-record-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const action = item.dataset.action;
+        quickRecordOverlay.classList.remove('active');
+        activateChat();
+        const prompts = {
+          planner: 'Help me plan my schedule for today',
+          tasks: 'I want to add a new task',
+          notes: 'I want to record a note',
+          habits: 'Help me track my habits'
+        };
+        if (prompts[action]) {
+          chatInput.value = prompts[action];
+          chatInput.focus();
+        }
+      });
+    });
+  }
+
 })();
