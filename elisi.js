@@ -68,12 +68,30 @@ Generate 2-4 realistic weekly tasks.`;
     chatInput.focus();
   }
 
+  function deactivateChat() {
+    chatActivated = false;
+    chatInput.value = '';
+    chatInput.classList.remove('visible');
+    chatInputPlaceholder.classList.remove('hidden');
+    chatSendBtn.classList.add('hidden');
+    chatMicBtn.classList.remove('hidden');
+  }
+
   // --- Send Message ---
   chatSendBtn.addEventListener('click', sendMessage);
   chatInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       sendMessage();
+    }
+  });
+
+  // Click outside input to deactivate
+  document.addEventListener('click', (e) => {
+    if (!chatActivated) return;
+    const wrapper = document.getElementById('chatInputWrapper');
+    if (!wrapper.contains(e.target)) {
+      deactivateChat();
     }
   });
 
@@ -89,6 +107,7 @@ Generate 2-4 realistic weekly tasks.`;
 
     appendMessage(text, 'user');
     chatInput.value = '';
+    deactivateChat();
     conversationHistory.push({ role: 'user', parts: [{ text }] });
 
     showTypingIndicator();

@@ -176,8 +176,7 @@ body {
   border-top: none;
 }
 
-.chat-tool-btn,
-.chat-mic-btn {
+.chat-tool-btn {
   width: 56px;
   height: 56px;
   border-radius: 50%;
@@ -191,16 +190,18 @@ body {
   transition: background 0.2s;
 }
 
-.chat-tool-btn:active,
-.chat-mic-btn:active {
+.chat-tool-btn:active {
   background: #E0E0E0;
 }
 
 /* Chat Input Wrapper */
 .chat-input-wrapper {
   flex: 1;
+  min-width: 0;
   position: relative;
   height: 56px;
+  display: flex;
+  align-items: center;
 }
 
 .chat-input-placeholder {
@@ -210,7 +211,7 @@ body {
   border-radius: 28px;
   display: flex;
   align-items: center;
-  padding: 0 18px;
+  padding: 0 52px 0 18px;
   font-size: 16px;
   color: #999;
   cursor: pointer;
@@ -230,7 +231,7 @@ body {
   height: 56px;
   border: none;
   border-radius: 28px;
-  padding: 0 18px;
+  padding: 0 52px 0 18px;
   font-size: 16px;
   outline: none;
   background: #F5F5F5;
@@ -251,29 +252,54 @@ body {
   color: #999;
 }
 
-.chat-send-btn {
-  width: 56px;
-  height: 56px;
+.chat-input-mic {
+  position: absolute;
+  right: 8px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   border: none;
-  background: #121212;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  z-index: 2;
+}
+
+.chat-input-mic:active {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.chat-input-mic.hidden {
+  display: none;
+}
+
+.chat-send-btn {
+  position: absolute;
+  right: 4px;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  border: none;
+  padding: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   flex-shrink: 0;
   transition: opacity 0.2s;
+  z-index: 2;
 }
 
 .chat-send-btn:active {
-  opacity: 0.7;
+  opacity: 0.8;
 }
 
 .chat-send-btn.hidden {
-  display: none;
-}
-
-.chat-mic-btn.hidden {
   display: none;
 }
 
@@ -343,9 +369,10 @@ body {
 }
 
 .user-message .message-bubble {
-  background: #121212;
-  color: #FFFFFF;
-  border-top-right-radius: 4px;
+  background: #F5F5F5;
+  color: #121212;
+  border-radius: 30px 30px 8px 30px;
+  padding: 20px 20px;
 }
 
 /* Typing indicator */
