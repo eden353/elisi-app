@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>会员中心 - 动力点系统</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <!-- 状态栏 -->
+        <div class="status-bar">
+            <span class="time">9:41</span>
+            <div class="status-icons">
+                <span class="signal">📶</span>
+                <span class="wifi">📶</span>
+                <span class="battery">🔋</span>
+            </div>
+        </div>
+
+        <!-- 导航栏 -->
+        <div class="nav-bar">
+            <button class="close-btn" id="closeBtn">✕</button>
+            <h1 class="nav-title">会员中心</h1>
+            <div class="nav-spacer"></div>
+        </div>
+
+        <!-- 主要内容区域 -->
+        <div class="main-content">
+            <!-- 功能说明区域 -->
+            <div class="feature-section">
+                <h2 class="feature-title">动力点系统</h2>
+                <p class="feature-desc">
+                    通过日常使用光点计划,可获得动力点来兑换礼品或解锁更多特权
+                </p>
+                <p class="feature-desc">
+                    订阅版每次可获得双倍积分,并可兑换专属礼品
+                </p>
+
+                <!-- 插图区域：使用提供的图片 -->
+                <div class="illustration">
+                    <img src="pic.png" alt="动力点礼盒插画" class="illustration-img" />
+                </div>
+
+                <!-- 分页指示器 -->
+                <div class="pagination-dots">
+                    <span class="dot"></span>
+                    <span class="dot"></span>
+                    <span class="dot"></span>
+                    <span class="dot active"></span>
+                </div>
+            </div>
+
+            <!-- 会员计划选择区域 -->
+            <div class="membership-section">
+                <h3 class="section-title">选择会员计划</h3>
+                
+                <div class="membership-options">
+                    <div class="membership-card active" data-plan="monthly">
+                        <div class="card-content">
+                            <h4 class="plan-name">月度会员</h4>
+                            <p class="plan-subtitle">试用7天后,按月计费</p>
+                            <div class="plan-price">¥22</div>
+                        </div>
+                        <div class="check-icon">✓</div>
+                    </div>
+
+                    <div class="membership-card" data-plan="annual">
+                        <div class="card-content">
+                            <h4 class="plan-name">年度会员</h4>
+                            <p class="plan-subtitle">试用7天后,按年计费</p>
+                            <div class="plan-price">¥173</div>
+                        </div>
+                        <div class="check-icon">✓</div>
+                    </div>
+                </div>
+
+                <p class="disclaimer">7天试用过后以对应价格续订,可随时取消</p>
+
+                <button class="activate-btn" id="activateBtn">立即开通</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
+

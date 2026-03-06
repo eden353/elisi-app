@@ -1,0 +1,388 @@
+/* 基础重置 */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro', 'Segoe UI', sans-serif;
+    background: #F3F4F6;
+    min-height: 100vh;
+    color: #0F172A;
+}
+
+/* 主容器 */
+.container {
+    display: flex;
+    min-height: 100vh;
+    background: rgba(255, 255, 255, 0.6);
+}
+
+/* 左侧区域 */
+.left-section {
+    flex: 1;
+    max-width: 800px;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Header */
+.header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding-bottom: 20px;
+}
+
+.settings-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    border: none;
+    background: transparent;
+    padding: 0;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    overflow: hidden;
+}
+
+.settings-icon {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 12px;
+}
+
+.settings-btn:hover {
+    background: rgba(15, 23, 42, 0.12);
+    transform: scale(1.02);
+}
+
+.settings-btn:active {
+    transform: scale(0.98);
+}
+
+.logo {
+    display: flex;
+    align-items: center;
+}
+
+.logo-text {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: -0.015em;
+    text-transform: capitalize;
+    color: #171717;
+}
+
+/* 主要内容 */
+.main-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 0 127px;
+    max-width: 700px;
+}
+
+/* 欢迎区域 */
+.welcome-section {
+    margin-bottom: 60px;
+}
+
+.welcome-text {
+    font-family: 'Inter', sans-serif;
+    font-size: 60px;
+    font-weight: 600;
+    line-height: 1.06;
+    text-transform: capitalize;
+    color: #0F172A;
+    margin: 0 0 4px 0;
+}
+
+.brand-line {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.to-text {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 76px;
+    font-weight: 400;
+    font-style: italic;
+    line-height: 1.08;
+    text-transform: lowercase;
+    color: #0F172A;
+}
+
+.brand-name {
+    font-size: 60px;
+    font-weight: 600;
+    line-height: 1.06;
+    text-transform: capitalize;
+    color: #0F172A;
+    margin: 0;
+}
+
+.tagline {
+    font-family: 'SF Pro', -apple-system, sans-serif;
+    font-size: 24px;
+    font-weight: 400;
+    line-height: 1;
+    color: rgba(0, 0, 0, 0.4);
+}
+
+/* 登录表单 */
+.login-form {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    width: 100%;
+    max-width: 462px;
+}
+
+/* 社交登录按钮 */
+.social-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    width: 100%;
+    height: 64px;
+    padding: 16px 25px;
+    border-radius: 100px;
+    border: 1.43px solid #DBDCDE;
+    background: transparent;
+    font-family: 'SF Pro', -apple-system, sans-serif;
+    font-size: 18px;
+    font-weight: 400;
+    text-transform: capitalize;
+    color: rgba(0, 0, 0, 0.65);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.social-btn:hover {
+    background: rgba(0, 0, 0, 0.02);
+    border-color: #B0B0B0;
+    transform: translateY(-1px);
+}
+
+.social-btn:active {
+    transform: translateY(0);
+}
+
+.social-icon {
+    flex-shrink: 0;
+}
+
+/* 分隔线 */
+.divider {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 9px 0;
+}
+
+.divider-line {
+    flex: 1;
+    height: 1px;
+    background: rgba(0, 0, 0, 0.14);
+}
+
+.divider-text {
+    font-family: 'SF Pro', -apple-system, sans-serif;
+    font-size: 18px;
+    font-weight: 400;
+    text-transform: capitalize;
+    color: rgba(0, 0, 0, 0.4);
+}
+
+/* 邮箱输入框 */
+.email-input-wrapper {
+    width: 100%;
+}
+
+.email-input {
+    width: 100%;
+    height: 64px;
+    padding: 16px 27px;
+    border-radius: 100px;
+    border: none;
+    background: #FFFFFF;
+    box-shadow: 0 0 0 1.43px rgba(219, 220, 222, 1);
+    font-family: 'SF Pro', -apple-system, sans-serif;
+    font-size: 18px;
+    font-weight: 400;
+    color: #000000;
+    outline: none;
+    transition: all 0.2s ease;
+}
+
+.email-input::placeholder {
+    color: rgba(0, 0, 0, 0.35);
+}
+
+.email-input:focus {
+    box-shadow: 0 0 0 1.43px rgba(255, 56, 25, 0.44);
+}
+
+.email-input.has-value {
+    box-shadow: 0 0 0 1.43px rgba(255, 56, 25, 0.44);
+}
+
+/* Continue 按钮 */
+.continue-btn {
+    width: 100%;
+    height: 70px;
+    margin-top: 20px;
+    padding: 16px 21px;
+    border-radius: 100px;
+    border: none;
+    background: #666666;
+    font-family: 'SF Pro', -apple-system, sans-serif;
+    font-size: 24px;
+    font-weight: 400;
+    text-transform: capitalize;
+    color: #FFFFFF;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.continue-btn:hover {
+    background: #1E293B;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.2);
+}
+
+.continue-btn:active {
+    transform: translateY(0);
+    box-shadow: none;
+}
+
+/* 右侧区域 */
+.right-section {
+    width: 640px;
+    min-height: 100vh;
+    padding: 24px 24px 24px 0;
+    flex-shrink: 0;
+}
+
+.hero-image {
+    width: 100%;
+    height: 100%;
+    min-height: calc(100vh - 48px);
+    border-radius: 42px;
+    overflow: hidden;
+    position: relative;
+}
+
+.hero-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+}
+
+/* 响应式设计 */
+@media (max-width: 1280px) {
+    .main-content {
+        padding: 0 80px;
+    }
+    
+    .right-section {
+        width: 500px;
+    }
+}
+
+@media (max-width: 1024px) {
+    .container {
+        flex-direction: column;
+    }
+    
+    .left-section {
+        max-width: 100%;
+        padding: 24px;
+    }
+    
+    .main-content {
+        padding: 40px 24px;
+        max-width: 500px;
+        margin: 0 auto;
+    }
+    
+    .right-section {
+        width: 100%;
+        padding: 0 24px 24px;
+        order: -1;
+    }
+    
+    .hero-image {
+        min-height: 300px;
+        height: 300px;
+    }
+    
+    .hero-img {
+        object-position: top center;
+    }
+    
+    .welcome-text,
+    .brand-name {
+        font-size: 48px;
+    }
+    
+    .to-text {
+        font-size: 56px;
+    }
+    
+    .tagline {
+        font-size: 18px;
+    }
+}
+
+@media (max-width: 640px) {
+    .main-content {
+        padding: 24px 16px;
+    }
+    
+    .welcome-text,
+    .brand-name {
+        font-size: 36px;
+    }
+    
+    .to-text {
+        font-size: 42px;
+    }
+    
+    .tagline {
+        font-size: 16px;
+    }
+    
+    .login-form {
+        gap: 16px;
+    }
+    
+    .social-btn,
+    .email-input {
+        height: 56px;
+        font-size: 16px;
+    }
+    
+    .continue-btn {
+        height: 60px;
+        font-size: 20px;
+    }
+    
+    .hero-image {
+        border-radius: 24px;
+        min-height: 200px;
+        height: 200px;
+    }
+}
