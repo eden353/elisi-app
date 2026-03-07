@@ -197,14 +197,21 @@
               <span class="note-type-tag-icon">✍️</span>
               <span class="note-type-tag-label">Notes</span>
             </div>
+            <div class="note-input-images" id="noteInputImages"></div>
             <textarea placeholder="What ideas can be recorded?" id="notePageInput" rows="1"></textarea>
           </div>
-          <button class="note-input-mic" id="notePageMicBtn">
-            <img src="icon-mic-note.svg" alt="voice" width="24" height="24">
-          </button>
-          <button class="chat-send-btn hidden" id="notePageSendBtn">
-            <img src="icon-send-note.svg" alt="send" width="24" height="24">
-          </button>
+          <div class="note-input-actions">
+            <button class="note-input-img-btn" id="notePageImgBtn">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M19.7004 2.30005C20.8048 2.30025 21.7003 3.19569 21.7004 4.30005V19.7004C21.7002 20.8047 20.8047 21.7002 19.7004 21.7004H4.30005C3.19569 21.7003 2.30025 20.8048 2.30005 19.7004V4.30005C2.30015 3.19562 3.19562 2.30015 4.30005 2.30005H19.7004ZM3.70044 19.7004C3.70064 20.0316 3.96889 20.2999 4.30005 20.3H19.7004C20.0315 20.2998 20.2998 20.0315 20.3 19.7004V19.4553C17.783 18.9924 15.0975 17.7625 12.4934 16.512C9.38767 15.0282 6.4015 13.526 3.70044 12.9719V19.7004ZM20.3 13.0911C18.5081 13.3518 16.3621 13.8652 12.9622 15.0071L12.7483 15.0823L13.0969 15.2493L13.0979 15.2502C15.6407 16.4714 18.0755 17.5743 20.3 18.0295V13.0911ZM4.30005 3.70044C3.96882 3.70054 3.70054 3.96882 3.70044 4.30005V11.5461C5.91091 11.9545 8.26293 12.9572 10.5833 14.0481L10.9622 14.2288C11.5015 14.036 12.012 13.8564 12.4983 13.6858L12.5071 13.6829C16.0864 12.4804 18.3536 11.9448 20.3 11.677V4.30005C20.2999 3.96889 20.0316 3.70064 19.7004 3.70044H4.30005ZM15.5002 6.75024C16.1905 6.75035 16.7502 7.30995 16.7502 8.00024C16.7501 8.69044 16.1904 9.25014 15.5002 9.25024C14.81 9.25024 14.2503 8.69051 14.2502 8.00024C14.2502 7.30989 14.8099 6.75024 15.5002 6.75024Z" fill="black"/></svg>
+            </button>
+            <input type="file" accept="image/*" multiple id="notePageImgInput" style="display:none">
+            <button class="note-input-mic" id="notePageMicBtn">
+              <img src="icon-mic-note.svg" alt="voice" width="24" height="24">
+            </button>
+            <button class="chat-send-btn hidden" id="notePageSendBtn">
+              <img src="icon-send-note.svg" alt="send" width="24" height="24">
+            </button>
+          </div>
         </div>
       </div>
     </div>

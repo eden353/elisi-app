@@ -321,32 +321,76 @@ Keep the title short (under 30 chars) and capture the essence. The content shoul
     document.querySelector('.task-detail-header-title').textContent = 'Note Details';
     // Hide task-specific sections
     document.querySelector('.task-detail-subtask-section').style.display = 'none';
-    // Change icon to note icon
-    document.querySelector('.task-detail-title-icon').innerHTML = `<svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M4 2h8l4 4v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z" stroke="#121212" stroke-width="1.5" fill="none"/><path d="M12 2v4h4" stroke="#121212" stroke-width="1.5" fill="none"/><path d="M6 10h8M6 14h5" stroke="#121212" stroke-width="1.5" stroke-linecap="round"/></svg>`;
-    // Hide project dot
-    taskDetailProjectDot.style.display = 'none';
+    // Hide title icon
+    document.querySelector('.task-detail-title-icon').style.display = 'none';
+    // Hide project row
+    document.querySelector('.task-detail-project-row').style.display = 'none';
 
-    // Set note title in project name area
-    taskDetailProject.textContent = noteData.title || 'Untitled Note';
-    // Set note title in title area
+    // Set note title in title area (styled as 20px/590 weight)
     taskDetailTitle.textContent = noteData.title || '';
+    taskDetailTitle.classList.add('note-detail-title');
+    taskDetailTitle.contentEditable = 'true';
+    taskDetailTitle.addEventListener('input', function noteDetailTitleInput() {
+      if (currentTaskData) {
+        currentTaskData.title = taskDetailTitle.textContent;
+      }
+    });
 
     // Remove existing note content area
     const existingNoteArea = document.querySelector('.note-detail-content-area');
     if (existingNoteArea) existingNoteArea.remove();
 
-    // Add note content textarea after title section
+    // Build images list: prefer images array, fallback to single image
+    const allImages = noteData.images ? [...noteData.images] : (noteData.detailImage || noteData.image ? [noteData.detailImage || noteData.image] : []);
+
+    // Add note content area after title section: body text + images + bottom line
     const titleSection = document.querySelector('.task-detail-title-section');
     const noteArea = document.createElement('div');
     noteArea.className = 'note-detail-content-area';
-    noteArea.innerHTML = `<textarea class="note-detail-textarea" placeholder="Write your note...">${escapeHtml(noteData.content || '')}</textarea>`;
+    noteArea.innerHTML = `
+      <div class="note-detail-body-text" contenteditable="true" placeholder="Write your note...">${escapeHtml(noteData.content || '')}</div>
+      <div class="note-detail-images"></div>
+      <div class="note-detail-bottom-line"></div>
+    `;
     titleSection.after(noteArea);
 
+    const imagesContainer = noteArea.querySelector('.note-detail-images');
+
+    function renderDetailImages() {
+      imagesContainer.innerHTML = '';
+      allImages.forEach((src, idx) => {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'note-detail-image-wrapper';
+        wrapper.innerHTML = `<img class="note-detail-image" src="${src}" alt=""><button class="note-detail-image-delete">&times;</button>`;
+        wrapper.querySelector('.note-detail-image-delete').addEventListener('click', () => {
+          allImages.splice(idx, 1);
+          syncImagesToNoteData();
+          renderDetailImages();
+        });
+        imagesContainer.appendChild(wrapper);
+      });
+    }
+
+    function syncImagesToNoteData() {
+      if (!currentTaskData) return;
+      if (allImages.length > 0) {
+        currentTaskData.images = [...allImages];
+        currentTaskData.image = allImages[0];
+        currentTaskData.detailImage = allImages[0];
+      } else {
+        currentTaskData.images = null;
+        currentTaskData.image = null;
+        currentTaskData.detailImage = null;
+      }
+    }
+
+    renderDetailImages();
+
     // Update content on change
-    const textarea = noteArea.querySelector('.note-detail-textarea');
-    textarea.addEventListener('input', () => {
+    const bodyText = noteArea.querySelector('.note-detail-body-text');
+    bodyText.addEventListener('input', () => {
       if (currentTaskData) {
-        currentTaskData.content = textarea.value;
+        currentTaskData.content = bodyText.textContent;
       }
     });
 
@@ -368,7 +412,25 @@ Keep the title short (under 30 chars) and capture the essence. The content shoul
     // Clean up note content area
     const noteArea = document.querySelector('.note-detail-content-area');
     if (noteArea) noteArea.remove();
+    // Reset note-specific styles
+    if (currentDetailType === 'note') {
+      document.querySelector('.task-detail-title-icon').style.display = '';
+      document.querySelector('.task-detail-project-row').style.display = '';
+      taskDetailTitle.classList.remove('note-detail-title');
+      // Refresh all visible note cards to reflect edits
+      refreshNoteCards();
+    }
     currentDetailType = 'task';
+  }
+
+  function refreshNoteCards() {
+    document.querySelectorAll('.note-card-item').forEach(card => {
+      const noteData = card._noteData;
+      if (!noteData) return;
+      // Rebuild card with updated data
+      const newCard = createNoteCardElement(noteData);
+      card.parentNode.replaceChild(newCard, card);
+    });
   }
 
   function createSubtaskItem(sub, idx) {
@@ -1036,12 +1098,16 @@ Keep the title short (under 30 chars) and capture the essence. The content shoul
   const notePageInput = document.getElementById('notePageInput');
   const notePageMicBtn = document.getElementById('notePageMicBtn');
   const notePageSendBtn = document.getElementById('notePageSendBtn');
+  const notePageImgBtn = document.getElementById('notePageImgBtn');
+  const notePageImgInput = document.getElementById('notePageImgInput');
   let createdNotes = [];
   let notePageInitialized = false;
   let syncedNoteCount = 0;
+  let pendingImages = [];
+  const noteInputImages = document.getElementById('noteInputImages');
   // All notes from history mock data
   const historyNotes = [
-    { title: "Today's Insight", content: 'The reason for our happiness lies within ourselves, not outside of ourselves.', image: 'pic_note.png' },
+    { title: "Today's Insight", content: 'The reason for our happiness lies within ourselves, not outside of ourselves.', image: 'pic_note.png', detailImage: 'note-detail-img.png' },
     { title: 'Remember to take the keys', content: 'Always check before leaving: keys, wallet, phone. Put a reminder note on the door handle tonight.' },
     { title: 'The Courage to Be Disliked', content: 'It hopes that I can be disliked this year. True freedom comes from not seeking validation from others. Adlerian psychology teaches us that all problems are interpersonal relationship problems.' },
   ];
@@ -1051,6 +1117,10 @@ Keep the title short (under 30 chars) and capture the essence. The content shoul
     notePageInput.style.height = 'auto';
     notePageSendBtn.classList.add('hidden');
     notePageMicBtn.classList.remove('hidden');
+
+    // Reset pending images
+    pendingImages = [];
+    if (noteInputImages) renderInputImages();
 
     // Always reset to note list view (close history detail if open)
     const noteHistoryPanel = document.getElementById('noteHistoryPanel');
@@ -1122,7 +1192,7 @@ Keep the title short (under 30 chars) and capture the essence. The content shoul
     notePageContent.scrollTop = notePageContent.scrollHeight;
   }
 
-  function addNotePageCard(noteData) {
+  function createNoteCardElement(noteData) {
     const card = document.createElement('div');
     card.className = 'note-card-item' + (noteData.image ? ' has-image' : '');
     if (noteData.image) {
@@ -1140,10 +1210,22 @@ Keep the title short (under 30 chars) and capture the essence. The content shoul
       `;
     }
     card.querySelector('.note-card-item-title').textContent = noteData.title;
-    card.querySelector('.note-card-item-desc').textContent = noteData.content;
+    const descEl = card.querySelector('.note-card-item-desc');
+    if (noteData.content) {
+      descEl.textContent = noteData.content;
+    } else {
+      descEl.textContent = 'No content yet';
+      descEl.classList.add('placeholder');
+    }
+    card._noteData = noteData;
     card.addEventListener('click', () => {
       openNoteDetail(noteData);
     });
+    return card;
+  }
+
+  function addNotePageCard(noteData) {
+    const card = createNoteCardElement(noteData);
     notePageContent.appendChild(card);
     notePageContent.scrollTop = notePageContent.scrollHeight;
     return card;
@@ -1234,7 +1316,7 @@ Keep the title short (under 30 chars) and capture the essence. The content shoul
       conversations: [
         {
           notes: [
-            { title: "Today's Insight", content: 'The reason for our happiness lies within ourselves, not outside of ourselves.', image: 'pic_note.png' },
+            { title: "Today's Insight", content: 'The reason for our happiness lies within ourselves, not outside of ourselves.', image: 'pic_note.png', detailImage: 'note-detail-img.png' },
           ],
           messages: [
             { role: 'user', text: 'The reason for our happiness lies within ourselves, not outside of ourselves.' },
@@ -1360,14 +1442,18 @@ Keep the title short (under 30 chars) and capture the essence. The content shoul
       notePageInput.style.height = notePageInput.scrollHeight + 'px';
     }
 
+    const noteInputActions = document.querySelector('.note-input-actions');
+
     notePageInput.addEventListener('input', () => {
       autoResizeNoteInput();
       if (notePageInput.value.trim().length > 0) {
         notePageMicBtn.classList.add('hidden');
         notePageSendBtn.classList.remove('hidden');
+        noteInputActions.classList.add('typing');
       } else {
         notePageSendBtn.classList.add('hidden');
         notePageMicBtn.classList.remove('hidden');
+        noteInputActions.classList.remove('typing');
       }
     });
 
@@ -1381,6 +1467,48 @@ Keep the title short (under 30 chars) and capture the essence. The content shoul
 
   if (notePageSendBtn) {
     notePageSendBtn.addEventListener('click', sendNoteMessage);
+  }
+
+  // Image upload button
+  if (notePageImgBtn && notePageImgInput) {
+    notePageImgBtn.addEventListener('click', () => {
+      if (pendingImages.length >= 18) return;
+      notePageImgInput.click();
+    });
+
+    notePageImgInput.addEventListener('change', (e) => {
+      const files = Array.from(e.target.files);
+      if (!files.length) return;
+      const remaining = 18 - pendingImages.length;
+      files.slice(0, remaining).forEach(file => {
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          pendingImages.push(ev.target.result);
+          renderInputImages();
+        };
+        reader.readAsDataURL(file);
+      });
+      notePageImgInput.value = '';
+    });
+  }
+
+  function renderInputImages() {
+    noteInputImages.innerHTML = '';
+    if (pendingImages.length === 0) {
+      noteInputImages.classList.remove('has-images');
+      return;
+    }
+    noteInputImages.classList.add('has-images');
+    pendingImages.forEach((url, idx) => {
+      const item = document.createElement('div');
+      item.className = 'note-input-image-item';
+      item.innerHTML = `<img src="${url}" alt=""><button class="note-input-image-item-delete">&times;</button>`;
+      item.querySelector('.note-input-image-item-delete').addEventListener('click', () => {
+        pendingImages.splice(idx, 1);
+        renderInputImages();
+      });
+      noteInputImages.appendChild(item);
+    });
   }
 
   // Demo mock title suggestions based on content keywords
@@ -1415,6 +1543,7 @@ Keep the title short (under 30 chars) and capture the essence. The content shoul
     notePageInput.style.height = 'auto';
     notePageSendBtn.classList.add('hidden');
     notePageMicBtn.classList.remove('hidden');
+    document.querySelector('.note-input-actions').classList.remove('typing');
 
     addNotePageTypingIndicator();
     notePageContent.scrollTop = notePageContent.scrollHeight;
@@ -1448,6 +1577,14 @@ Keep the title short (under 30 chars) and capture the essence. The content shoul
           title: 'Untitled',
           content: text
         };
+        // Attach pending images if any
+        if (pendingImages.length > 0) {
+          noteData.image = pendingImages[0];
+          noteData.detailImage = pendingImages[0];
+          noteData.images = [...pendingImages];
+          pendingImages = [];
+          renderInputImages();
+        }
         createdNotes.push(noteData);
 
         // AI suggests a title
@@ -1483,27 +1620,7 @@ Keep the title short (under 30 chars) and capture the essence. The content shoul
 
     const cardsContainer = msgEl.querySelector('.chat-note-cards');
     notes.forEach(note => {
-      const card = document.createElement('div');
-      card.className = 'note-card-item' + (note.image ? ' has-image' : '');
-      if (note.image) {
-        card.innerHTML = `
-          <img class="note-card-item-img" src="${note.image}" alt="">
-          <div class="note-card-item-text">
-            <div class="note-card-item-title"></div>
-            <div class="note-card-item-desc"></div>
-          </div>
-        `;
-      } else {
-        card.innerHTML = `
-          <div class="note-card-item-title"></div>
-          <div class="note-card-item-desc"></div>
-        `;
-      }
-      card.querySelector('.note-card-item-title').textContent = note.title;
-      card.querySelector('.note-card-item-desc').textContent = note.content;
-      card.addEventListener('click', () => {
-        openNoteDetail(note);
-      });
+      const card = createNoteCardElement(note);
       cardsContainer.appendChild(card);
     });
 

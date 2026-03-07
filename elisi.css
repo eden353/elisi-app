@@ -962,7 +962,7 @@ body {
 /* Title Section */
 .task-detail-title-section {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 14px;
   padding: 28px 20px 10px;
 }
@@ -980,6 +980,9 @@ body {
   flex: 1;
   outline: none;
   min-height: 22px;
+  height: auto;
+  overflow-wrap: break-word;
+  word-break: break-word;
   cursor: pointer;
   border-radius: 8px;
   padding: 4px 6px;
@@ -1682,18 +1685,20 @@ body {
 
 /* Note card item */
 .note-card-item {
-  width: 100%;
-  max-width: 350px;
+  width: 350px;
+  max-width: 100%;
   background: #F5EDE1;
   border-radius: 30px;
   padding: 18px;
   display: flex;
   flex-direction: column;
-  justify-content: center;
   gap: 6px;
   cursor: pointer;
   animation: fadeInUp 0.3s ease;
   transition: transform 0.2s;
+  box-sizing: border-box;
+  min-height: 100px;
+  flex-shrink: 0;
 }
 
 .note-card-item:active {
@@ -1726,9 +1731,15 @@ body {
   overflow: hidden;
 }
 
+.note-card-item-desc.placeholder {
+  color: rgba(0, 0, 0, 0.3);
+  font-style: italic;
+}
+
 .note-card-item.has-image {
   flex-direction: row;
   align-items: flex-start;
+  justify-content: flex-start;
   padding: 18px;
   gap: 14px;
 }
@@ -1761,6 +1772,7 @@ body {
   border-radius: 30px;
   padding: 12px;
   position: relative;
+  position: relative;
   transition: background 0.2s;
 }
 
@@ -1775,7 +1787,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding-right: 54px;
+  padding-right: 110px;
 }
 
 .note-type-tag {
@@ -1826,13 +1838,11 @@ body {
 }
 
 .note-input-mic {
-  position: absolute;
-  right: 10px;
-  bottom: 10px;
-  width: 42px;
-  height: 42px;
+  width: 40px;
+  height: 40px;
   border: none;
-  background: transparent;
+  background: #ffffff;
+  border-radius: 100px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1841,16 +1851,89 @@ body {
   padding: 0;
 }
 
+.note-input-images {
+  display: none;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  margin-right: -98px;
+  margin-top: 8px;
+}
+
+.note-input-images.has-images {
+  display: grid;
+}
+
+.note-input-image-item {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+}
+
+.note-input-image-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 8px;
+  display: block;
+}
+
+.note-input-image-item-delete {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  border: none;
+  font-size: 12px;
+  line-height: 18px;
+  text-align: center;
+  cursor: pointer;
+  padding: 0;
+}
+
+.note-input-actions {
+  position: absolute;
+  right: 10px;
+  bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
+.note-input-actions.typing {
+  gap: 8px;
+}
+
+.note-input-img-btn {
+  width: 40px;
+  height: 40px;
+  border: none;
+  background: #ffffff;
+  border-radius: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: 0;
+  transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.note-input-actions.typing .note-input-img-btn {
+  transform: translateX(-4px);
+}
+
 .note-input-mic.hidden {
   display: none;
 }
 
 .note-input-box .chat-send-btn {
-  position: absolute;
-  right: 10px;
-  bottom: 10px;
-  width: 42px;
-  height: 42px;
+  position: static;
+  width: 40px;
+  height: 40px;
   background: linear-gradient(175deg, #76FBA2 0%, #2DC276 100%);
   border-radius: 100px;
   border: none;
@@ -1862,6 +1945,7 @@ body {
   animation: none;
   box-shadow: none;
   filter: none;
+  z-index: auto;
 }
 
 .note-input-box .chat-send-btn img {
@@ -1986,29 +2070,78 @@ body {
 }
 
 /* Note content area in detail panel */
-.note-detail-content-area {
-  padding: 0 20px;
-  margin-top: 8px;
+.note-detail-title {
+  font-size: 20px !important;
+  font-weight: 590 !important;
+  line-height: 1.2 !important;
 }
 
-.note-detail-textarea {
-  width: 100%;
-  min-height: 200px;
-  border: none;
-  background: rgba(242, 242, 242, 0.6);
-  border-radius: 18px;
-  padding: 16px;
-  font-size: 15px;
+.note-detail-content-area {
+  padding: 10px 20px 0;
+}
+
+.note-detail-body-text {
+  font-size: 16px;
   font-weight: 400;
   color: #121212;
-  line-height: 1.6;
+  line-height: 1.375;
   outline: none;
-  resize: none;
+  min-height: 22px;
   font-family: inherit;
 }
 
-.note-detail-textarea::placeholder {
+.note-detail-body-text:empty::before {
+  content: attr(placeholder);
   color: rgba(0, 0, 0, 0.35);
+}
+
+.note-detail-images {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.note-detail-images:empty {
+  display: none;
+}
+
+.note-detail-image-wrapper {
+  position: relative;
+}
+
+.note-detail-image {
+  width: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.note-detail-image-delete {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  border: none;
+  font-size: 18px;
+  line-height: 28px;
+  text-align: center;
+  cursor: pointer;
+  padding: 0;
+  display: none;
+}
+
+.note-detail-image-wrapper:hover .note-detail-image-delete {
+  display: block;
+}
+
+.note-detail-bottom-line {
+  height: 0;
+  border-bottom: 0.6px solid rgba(0, 0, 0, 0.12);
+  margin-top: 20px;
 }
 
 /* Note cards in main chat */
@@ -2017,5 +2150,6 @@ body {
   flex-direction: column;
   gap: 10px;
   margin-top: 4px;
+  width: 100%;
 }
 
