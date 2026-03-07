@@ -25,33 +25,17 @@ body {
   overflow: hidden;
 }
 
-/* Status Bar */
-.status-bar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: calc(env(safe-area-inset-top, 14px)) 28px 0;
-  min-height: 50px;
-}
-
-.status-time {
-  font-size: 16px;
-  font-weight: 600;
-  color: #121212;
-  letter-spacing: 0.5px;
-}
-
-.status-icons {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+/* Top Spacer */
+.top-spacer {
+  height: 30px;
+  flex-shrink: 0;
 }
 
 /* Main Content */
 .main-content {
   padding: 0 24px 100px;
   overflow-y: auto;
-  height: calc(100% - 50px);
+  height: calc(100% - 30px);
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
   -ms-overflow-style: none;
@@ -170,7 +154,7 @@ body {
   z-index: 50;
   display: flex;
   align-items: center;
-  padding: 12px 16px calc(env(safe-area-inset-bottom, 20px) + 12px);
+  padding: 12px 16px 20px;
   background: #FFFFFF;
   gap: 10px;
   border-top: none;
@@ -848,7 +832,7 @@ body {
   gap: 6px;
   height: 38px;
   padding: 10px 12px;
-  background: #F5F5F5;
+  background: transparent;
   border: 1px solid rgba(0, 0, 0, 0.1);
   border-radius: 100px;
   cursor: pointer;
@@ -860,7 +844,7 @@ body {
 }
 
 .collapse-btn:active {
-  background: #EBEBEB;
+  background: rgba(0, 0, 0, 0.05);
 }
 
 /* ===== Task Detail Panel ===== */
@@ -968,7 +952,7 @@ body {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
-  padding-bottom: calc(env(safe-area-inset-bottom, 20px) + 40px);
+  padding-bottom: 20px;
 }
 
 .task-detail-body::-webkit-scrollbar {
@@ -1514,7 +1498,7 @@ body {
 .quick-record-menu {
   position: absolute;
   left: 24px;
-  bottom: calc(env(safe-area-inset-bottom, 20px) + 24px);
+  bottom: 20px;
   display: flex;
   flex-direction: column;
   gap: 15px;
@@ -1582,5 +1566,456 @@ body {
 
 .quick-record-close:active {
   transform: scale(0.9) !important;
+}
+
+/* ===== Note Creation Page ===== */
+.note-creation-page {
+  position: absolute;
+  inset: 0;
+  z-index: 90;
+  background: linear-gradient(171deg, #fff 45%, #F5EDE1 78%, #FFEBD9 100%);
+  transform: translateY(100%);
+  transition: transform 0.4s cubic-bezier(0.32, 0.72, 0, 1);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.note-creation-page.active {
+  transform: translateY(0);
+}
+
+.note-creation-page::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 98px;
+  background: #ffffff;
+  z-index: 1;
+}
+
+/* Close button */
+.note-page-close {
+  position: absolute;
+  top: 30px;
+  left: 20px;
+  width: 48px;
+  height: 48px;
+  background: #F5F5F5;
+  border-radius: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 2;
+  transition: background 0.2s;
+}
+
+.note-page-close:active {
+  background: #E8E8E8;
+}
+
+/* History button */
+.note-page-history {
+  position: absolute;
+  top: 30px;
+  right: 20px;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 2;
+  transition: opacity 0.2s;
+}
+
+.note-page-history:active {
+  opacity: 0.6;
+}
+
+/* Content area */
+.note-page-content {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding: 118px 24px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.note-page-content::-webkit-scrollbar {
+  display: none;
+}
+
+/* AI message in note page — content recommendation style */
+.note-page-ai-msg {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  animation: fadeInUp 0.3s ease;
+}
+
+.note-page-ai-msg .note-ai-label-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.note-page-ai-msg .note-ai-label-row span {
+  font-size: 18px;
+  font-weight: 590;
+  color: #121212;
+  line-height: 1.33;
+}
+
+.note-page-ai-msg .note-ai-text {
+  font-size: 16px;
+  font-weight: 400;
+  color: #121212;
+  line-height: 1.4;
+}
+
+/* Note card item */
+.note-card-item {
+  width: 100%;
+  max-width: 350px;
+  background: #F5EDE1;
+  border-radius: 30px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  animation: fadeInUp 0.3s ease;
+  transition: transform 0.2s;
+}
+
+.note-card-item:active {
+  transform: scale(0.97);
+}
+
+.note-card-item + .note-card-item {
+  margin-top: -8px;
+}
+
+.note-card-item-title {
+  font-size: 18px;
+  font-weight: 500;
+  color: #121212;
+  line-height: 1.33;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.note-card-item-desc {
+  font-size: 14px;
+  font-weight: 400;
+  color: rgba(0, 0, 0, 0.54);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.note-card-item.has-image {
+  flex-direction: row;
+  align-items: flex-start;
+  padding: 18px;
+  gap: 14px;
+}
+
+.note-card-item-img {
+  width: 64px;
+  height: 64px;
+  border-radius: 18px;
+  border: 2.6px solid #fff;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.note-card-item-text {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* Note page input bar */
+.note-page-input-bar {
+  flex-shrink: 0;
+  padding: 8px 16px 20px;
+  background: transparent;
+}
+
+.note-input-box {
+  background: #F5F5F5;
+  border-radius: 30px;
+  padding: 12px;
+  position: relative;
+  transition: background 0.2s;
+}
+
+.note-input-box.has-tag {
+  background: #FFFFFF;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0px 2px 14.3px 0px rgba(235, 223, 208, 0.3);
+}
+
+.note-input-left {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-right: 54px;
+}
+
+.note-type-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+  height: 34px;
+  background: #F5F5F5;
+  border: 0.6px solid rgba(0, 0, 0, 0.08);
+  border-radius: 100px;
+  align-self: flex-start;
+}
+
+.note-type-tag-icon {
+  font-size: 18px;
+  font-weight: 510;
+  line-height: 0.83;
+}
+
+.note-type-tag-label {
+  font-size: 14px;
+  font-weight: 510;
+  color: #121212;
+  line-height: 1.07;
+}
+
+.note-input-left textarea {
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 10px 0;
+  font-size: 16px;
+  font-weight: 400;
+  color: #121212;
+  outline: none;
+  line-height: 1.4;
+  min-height: 42px;
+  resize: none;
+  overflow: hidden;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.note-input-left textarea::placeholder {
+  color: rgba(0, 0, 0, 0.54);
+  font-weight: 400;
+}
+
+.note-input-mic {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  width: 42px;
+  height: 42px;
+  border: none;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.note-input-mic.hidden {
+  display: none;
+}
+
+.note-input-box .chat-send-btn {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  width: 42px;
+  height: 42px;
+  background: linear-gradient(175deg, #76FBA2 0%, #2DC276 100%);
+  border-radius: 100px;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  animation: none;
+  box-shadow: none;
+  filter: none;
+}
+
+.note-input-box .chat-send-btn img {
+  width: 24px;
+  height: 24px;
+}
+
+/* ===== Note History Panel ===== */
+.note-history-panel {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  background: #FFFFFF;
+  transform: translateX(100%);
+  transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+  display: flex;
+  flex-direction: column;
+}
+
+.note-history-panel.active {
+  transform: translateX(0);
+}
+
+.note-history-close {
+  position: absolute;
+  top: 30px;
+  left: 20px;
+  width: 48px;
+  height: 48px;
+  background: #F5F5F5;
+  border-radius: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 2;
+  transition: background 0.2s;
+}
+
+.note-history-close:active {
+  background: #E8E8E8;
+}
+
+.note-history-list {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding: 108px 24px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 36px;
+}
+
+.note-history-list::-webkit-scrollbar {
+  display: none;
+}
+
+.note-history-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 21px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.note-history-item:active {
+  opacity: 0.6;
+}
+
+.note-history-date {
+  width: 66px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.note-history-day {
+  font-size: 24px;
+  font-weight: 590;
+  color: #121212;
+  line-height: 0.93;
+}
+
+.note-history-month {
+  font-size: 16px;
+  font-weight: 400;
+  color: rgba(0, 0, 0, 0.4);
+  line-height: 1.4;
+}
+
+.note-history-summaries {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  flex: 1;
+  padding-top: 2px;
+}
+
+.note-history-summary {
+  font-size: 16px;
+  font-weight: 400;
+  color: #121212;
+  line-height: 1.4;
+  padding: 0 10px;
+}
+
+
+.note-history-bottom-divider {
+  height: 1px;
+  background: rgba(0, 0, 0, 0.12);
+  width: 100%;
+  margin-top: -6px;
+}
+
+/* Note page user message bubble */
+.note-user-bubble {
+  background: #F5F5F5;
+  border-radius: 30px 30px 8px 30px;
+  padding: 20px;
+  mix-blend-mode: multiply;
+}
+
+/* Note content area in detail panel */
+.note-detail-content-area {
+  padding: 0 20px;
+  margin-top: 8px;
+}
+
+.note-detail-textarea {
+  width: 100%;
+  min-height: 200px;
+  border: none;
+  background: rgba(242, 242, 242, 0.6);
+  border-radius: 18px;
+  padding: 16px;
+  font-size: 15px;
+  font-weight: 400;
+  color: #121212;
+  line-height: 1.6;
+  outline: none;
+  resize: none;
+  font-family: inherit;
+}
+
+.note-detail-textarea::placeholder {
+  color: rgba(0, 0, 0, 0.35);
+}
+
+/* Note cards in main chat */
+.chat-note-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 4px;
 }
 

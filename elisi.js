@@ -34,7 +34,15 @@ IMPORTANT: When the user asks about this week's plans, weekly schedule, or weekl
     {"name": "Another task"}
   ]
 }
-Generate 2-4 realistic weekly tasks.`;
+Generate 2-4 realistic weekly tasks.
+
+IMPORTANT: When the user wants to create a note or record an idea/thought/inspiration, respond with ONLY a valid JSON object in this exact format, no other text:
+{
+  "type": "note_card",
+  "title": "Note title (concise summary)",
+  "content": "The full note content text"
+}
+Keep the title short (under 30 chars) and capture the essence. The content should elaborate on the user's idea.`;
 
   // DOM elements
   const mainContent = document.querySelector('.main-content');
@@ -260,9 +268,22 @@ Generate 2-4 realistic weekly tasks.`;
   const subtaskAddInput = document.getElementById('subtaskAddInput');
 
   let currentTaskData = null;
+  let currentDetailType = 'task'; // 'task' or 'note'
 
   function openTaskDetail(taskData) {
     currentTaskData = taskData;
+    currentDetailType = 'task';
+
+    // Set header title
+    document.querySelector('.task-detail-header-title').textContent = 'Task Details';
+    // Show task-specific sections
+    document.querySelector('.task-detail-subtask-section').style.display = '';
+    document.querySelector('.task-detail-title-icon').innerHTML = '<img src="icon-clipboard.svg" alt="clipboard" width="20" height="20">';
+    // Remove note content area if exists
+    const existingNoteArea = document.querySelector('.note-detail-content-area');
+    if (existingNoteArea) existingNoteArea.remove();
+    // Show project row dot
+    taskDetailProjectDot.style.display = '';
 
     // Populate panel
     if (taskData.title) {
@@ -292,6 +313,49 @@ Generate 2-4 realistic weekly tasks.`;
     document.body.style.overflow = 'hidden';
   }
 
+  function openNoteDetail(noteData) {
+    currentTaskData = noteData;
+    currentDetailType = 'note';
+
+    // Set header title
+    document.querySelector('.task-detail-header-title').textContent = 'Note Details';
+    // Hide task-specific sections
+    document.querySelector('.task-detail-subtask-section').style.display = 'none';
+    // Change icon to note icon
+    document.querySelector('.task-detail-title-icon').innerHTML = `<svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M4 2h8l4 4v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z" stroke="#121212" stroke-width="1.5" fill="none"/><path d="M12 2v4h4" stroke="#121212" stroke-width="1.5" fill="none"/><path d="M6 10h8M6 14h5" stroke="#121212" stroke-width="1.5" stroke-linecap="round"/></svg>`;
+    // Hide project dot
+    taskDetailProjectDot.style.display = 'none';
+
+    // Set note title in project name area
+    taskDetailProject.textContent = noteData.title || 'Untitled Note';
+    // Set note title in title area
+    taskDetailTitle.textContent = noteData.title || '';
+
+    // Remove existing note content area
+    const existingNoteArea = document.querySelector('.note-detail-content-area');
+    if (existingNoteArea) existingNoteArea.remove();
+
+    // Add note content textarea after title section
+    const titleSection = document.querySelector('.task-detail-title-section');
+    const noteArea = document.createElement('div');
+    noteArea.className = 'note-detail-content-area';
+    noteArea.innerHTML = `<textarea class="note-detail-textarea" placeholder="Write your note...">${escapeHtml(noteData.content || '')}</textarea>`;
+    titleSection.after(noteArea);
+
+    // Update content on change
+    const textarea = noteArea.querySelector('.note-detail-textarea');
+    textarea.addEventListener('input', () => {
+      if (currentTaskData) {
+        currentTaskData.content = textarea.value;
+      }
+    });
+
+    // Show panel
+    taskDetailMask.classList.add('active');
+    taskDetailPanel.classList.add('active');
+    document.body.style.overflow = 'hidden';
+  }
+
   function closeTaskDetail() {
     taskDetailPanel.classList.remove('active');
     taskDetailMask.classList.remove('active');
@@ -301,6 +365,10 @@ Generate 2-4 realistic weekly tasks.`;
     moreExpanded = false;
     taskDetailMoreContent.classList.add('hidden');
     taskDetailMoreBtn.style.transform = '';
+    // Clean up note content area
+    const noteArea = document.querySelector('.note-detail-content-area');
+    if (noteArea) noteArea.remove();
+    currentDetailType = 'task';
   }
 
   function createSubtaskItem(sub, idx) {
@@ -894,6 +962,9 @@ Generate 2-4 realistic weekly tasks.`;
         renderScheduleCard(cardData);
       } else if (cardData?.type === 'planner_card') {
         renderPlannerCard(cardData);
+      } else if (cardData?.type === 'note_card') {
+        const noteData = { title: cardData.title || 'Untitled', content: cardData.content || '' };
+        renderNotesInChat([noteData]);
       } else {
         const msgEl = appendMessage('', 'ai');
         typewriterEffect(msgEl.querySelector('.message-bubble'), reply);
@@ -938,11 +1009,16 @@ Generate 2-4 realistic weekly tasks.`;
       item.addEventListener('click', () => {
         const action = item.dataset.action;
         quickRecordOverlay.classList.remove('active');
+
+        if (action === 'notes') {
+          openNotePage();
+          return;
+        }
+
         activateChat();
         const prompts = {
           planner: 'Help me plan my schedule for today',
           tasks: 'I want to add a new task',
-          notes: 'I want to record a note',
           habits: 'Help me track my habits'
         };
         if (prompts[action]) {
@@ -951,6 +1027,488 @@ Generate 2-4 realistic weekly tasks.`;
         }
       });
     });
+  }
+
+  // --- Note Creation Page ---
+  const noteCreationPage = document.getElementById('noteCreationPage');
+  const notePageClose = document.getElementById('notePageClose');
+  const notePageContent = document.getElementById('notePageContent');
+  const notePageInput = document.getElementById('notePageInput');
+  const notePageMicBtn = document.getElementById('notePageMicBtn');
+  const notePageSendBtn = document.getElementById('notePageSendBtn');
+  let createdNotes = [];
+  let notePageInitialized = false;
+  let syncedNoteCount = 0;
+  // All notes from history mock data
+  const historyNotes = [
+    { title: "Today's Insight", content: 'The reason for our happiness lies within ourselves, not outside of ourselves.', image: 'pic_note.png' },
+    { title: 'Remember to take the keys', content: 'Always check before leaving: keys, wallet, phone. Put a reminder note on the door handle tonight.' },
+    { title: 'The Courage to Be Disliked', content: 'It hopes that I can be disliked this year. True freedom comes from not seeking validation from others. Adlerian psychology teaches us that all problems are interpersonal relationship problems.' },
+  ];
+
+  function openNotePage() {
+    notePageInput.value = '';
+    notePageInput.style.height = 'auto';
+    notePageSendBtn.classList.add('hidden');
+    notePageMicBtn.classList.remove('hidden');
+
+    // Always reset to note list view (close history detail if open)
+    const noteHistoryPanel = document.getElementById('noteHistoryPanel');
+    if (noteHistoryPanel) noteHistoryPanel.classList.remove('active');
+
+    const allNotes = [...historyNotes, ...createdNotes];
+    const totalNotes = allNotes.length;
+
+    notePageContent.innerHTML = '';
+    if (totalNotes > 0) {
+      addNotePageAiMessage(`You have ${totalNotes} note${totalNotes > 1 ? 's' : ''}.`);
+      allNotes.forEach(note => {
+        addNotePageCard(note);
+      });
+    }
+
+    noteCreationPage.classList.add('active');
+    setTimeout(() => notePageInput.focus(), 400);
+  }
+
+  function closeNotePage() {
+    noteCreationPage.classList.remove('active');
+
+    // Sync only new notes to main chat
+    const newNotes = createdNotes.slice(syncedNoteCount);
+    if (newNotes.length > 0) {
+      syncedNoteCount = createdNotes.length;
+      setTimeout(() => {
+        renderNotesInChat(newNotes);
+      }, 400);
+    }
+  }
+
+  function addNotePageAiMessage(text, showHeader = true) {
+    const msg = document.createElement('div');
+    msg.className = 'note-page-ai-msg';
+    if (showHeader) {
+      msg.innerHTML = `
+        <div class="note-ai-label-row">
+          <img src="note-page-logo.svg" width="38" height="38" alt="Elisi">
+          <span>Elisi</span>
+        </div>
+        <div class="note-ai-text"></div>
+      `;
+    } else {
+      msg.className = 'card-intro-bubble';
+      msg.innerHTML = `<div class="message-bubble"></div>`;
+      msg.querySelector('.message-bubble').textContent = text;
+      notePageContent.appendChild(msg);
+      notePageContent.scrollTop = notePageContent.scrollHeight;
+      return;
+    }
+    msg.querySelector('.note-ai-text').textContent = text;
+    notePageContent.appendChild(msg);
+    notePageContent.scrollTop = notePageContent.scrollHeight;
+  }
+
+  function addNotePageLabelRow() {
+    const row = document.createElement('div');
+    row.className = 'schedule-card-label-row';
+    row.innerHTML = `
+      <div class="message-avatar">
+        <img src="logo for talk.svg" width="40" height="40" alt="Elisi">
+      </div>
+      <div class="ai-label">Elisi</div>
+    `;
+    row.style.animation = 'fadeInUp 0.3s ease';
+    notePageContent.appendChild(row);
+    notePageContent.scrollTop = notePageContent.scrollHeight;
+  }
+
+  function addNotePageCard(noteData) {
+    const card = document.createElement('div');
+    card.className = 'note-card-item' + (noteData.image ? ' has-image' : '');
+    if (noteData.image) {
+      card.innerHTML = `
+        <img class="note-card-item-img" src="${noteData.image}" alt="">
+        <div class="note-card-item-text">
+          <div class="note-card-item-title"></div>
+          <div class="note-card-item-desc"></div>
+        </div>
+      `;
+    } else {
+      card.innerHTML = `
+        <div class="note-card-item-title"></div>
+        <div class="note-card-item-desc"></div>
+      `;
+    }
+    card.querySelector('.note-card-item-title').textContent = noteData.title;
+    card.querySelector('.note-card-item-desc').textContent = noteData.content;
+    card.addEventListener('click', () => {
+      openNoteDetail(noteData);
+    });
+    notePageContent.appendChild(card);
+    notePageContent.scrollTop = notePageContent.scrollHeight;
+    return card;
+  }
+
+  function addNotePageTypingIndicator() {
+    const indicator = document.createElement('div');
+    indicator.className = 'note-page-ai-msg';
+    indicator.id = 'noteTypingIndicator';
+    indicator.innerHTML = `
+      <div class="note-ai-label-row">
+        <img src="note-page-logo.svg" width="38" height="38" alt="Elisi">
+        <span>Elisi</span>
+      </div>
+      <div class="note-ai-text" style="display:flex;gap:4px;">
+        <span class="typing-dot"></span>
+        <span class="typing-dot"></span>
+        <span class="typing-dot"></span>
+      </div>
+    `;
+    notePageContent.appendChild(indicator);
+    notePageContent.scrollTop = notePageContent.scrollHeight;
+  }
+
+  function removeNotePageTypingIndicator() {
+    const indicator = document.getElementById('noteTypingIndicator');
+    if (indicator) indicator.remove();
+  }
+
+  // Close button
+  if (notePageClose) {
+    notePageClose.addEventListener('click', closeNotePage);
+  }
+
+  // --- History Panel ---
+  const noteHistoryPanel = document.getElementById('noteHistoryPanel');
+  const noteHistoryClose = document.getElementById('noteHistoryClose');
+  const noteHistoryList = document.getElementById('noteHistoryList');
+  const notePageHistory = document.getElementById('notePageHistory');
+
+  // Mock history conversations with full chat data
+  const mockHistoryConversations = [
+    {
+      day: '01', month: 'Mar',
+      summaries: ['It hopes that I can be disliked this year...'],
+      conversations: [
+        {
+          notes: [
+            { title: 'The Courage to Be Disliked', content: 'It hopes that I can be disliked this year. True freedom comes from not seeking validation from others. Adlerian psychology teaches us that all problems are interpersonal relationship problems.' },
+          ],
+          messages: [
+            { role: 'user', text: 'I just finished reading "The Courage to Be Disliked", want to note down some thoughts' },
+            { role: 'ai-label' },
+            { role: 'ai', text: 'Note recorded! Would you like to add a title? I suggest: "Reading Reflection", or type your own.' },
+            { role: 'card', noteIndex: 0 },
+            { role: 'user', text: 'The Courage to Be Disliked' },
+            { role: 'ai-label' },
+            { role: 'ai', text: 'Great title! Your note has been updated.' },
+            { role: 'card', noteIndex: 0 },
+          ]
+        }
+      ]
+    },
+    {
+      day: '24', month: 'Feb',
+      summaries: ['Remember to take the keys'],
+      conversations: [
+        {
+          notes: [
+            { title: 'Remember to take the keys', content: 'Always check before leaving: keys, wallet, phone. Put a reminder note on the door handle tonight.' },
+          ],
+          messages: [
+            { role: 'user', text: 'Always check before leaving: keys, wallet, phone. Put a reminder note on the door' },
+            { role: 'ai-label' },
+            { role: 'ai', text: 'Note recorded! Would you like to add a title? I suggest: "Daily Reminder", or type your own.' },
+            { role: 'card', noteIndex: 0 },
+            { role: 'user', text: 'Remember to take the keys' },
+            { role: 'ai-label' },
+            { role: 'ai', text: 'Great title! Your note has been updated.' },
+            { role: 'card', noteIndex: 0 },
+          ]
+        }
+      ]
+    },
+    {
+      day: '21', month: 'Feb',
+      summaries: ["Today's Insight"],
+      conversations: [
+        {
+          notes: [
+            { title: "Today's Insight", content: 'The reason for our happiness lies within ourselves, not outside of ourselves.', image: 'pic_note.png' },
+          ],
+          messages: [
+            { role: 'user', text: 'The reason for our happiness lies within ourselves, not outside of ourselves.' },
+            { role: 'ai-label' },
+            { role: 'ai', text: 'Beautiful thought! Would you like to add a title? I suggest: "Today\'s Insight", or type your own.' },
+            { role: 'card', noteIndex: 0 },
+            { role: 'user', text: "Today's Insight" },
+            { role: 'ai-label' },
+            { role: 'ai', text: 'Great title! Your note has been updated.' },
+            { role: 'card', noteIndex: 0 },
+          ]
+        }
+      ]
+    }
+  ];
+
+  function renderHistoryConversation(convData) {
+    notePageContent.innerHTML = '';
+    notePageContent.scrollTop = 0;
+    pendingNoteData = null;
+    pendingNoteCardEl = null;
+
+    // Collect all notes from conversation groups
+    const allNotes = [];
+    convData.conversations.forEach(conv => {
+      conv.notes.forEach(n => allNotes.push(n));
+    });
+
+    // Show note count header
+    addNotePageAiMessage(`This chat has ${allNotes.length} note${allNotes.length > 1 ? 's' : ''}`);
+
+    // Render each conversation's messages
+    convData.conversations.forEach(conv => {
+      conv.messages.forEach(msg => {
+        if (msg.role === 'user') {
+          const userMsg = document.createElement('div');
+          userMsg.className = 'note-page-ai-msg';
+          userMsg.style.alignSelf = 'flex-end';
+          userMsg.style.flexDirection = 'row-reverse';
+          userMsg.innerHTML = `<div class="message-bubble note-user-bubble"></div>`;
+          userMsg.querySelector('.message-bubble').textContent = msg.text;
+          notePageContent.appendChild(userMsg);
+        } else if (msg.role === 'ai-label') {
+          addNotePageLabelRow();
+        } else if (msg.role === 'ai') {
+          addNotePageAiMessage(msg.text, false);
+        } else if (msg.role === 'card') {
+          const note = conv.notes[msg.noteIndex];
+          if (note) addNotePageCard(note);
+        }
+      });
+    });
+    // Scroll to top after rendering
+    notePageContent.scrollTop = 0;
+  }
+
+  function openNoteHistory() {
+    noteHistoryList.innerHTML = '';
+
+    const now = new Date();
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const currentSummary = createdNotes.length > 0
+      ? createdNotes[createdNotes.length - 1].title
+      : 'New conversation';
+
+    // Current session entry
+    const currentEntry = { day: 'Today', month: months[now.getMonth()], summaries: [currentSummary], isCurrent: true };
+    const allEntries = [currentEntry, ...mockHistoryConversations];
+
+    allEntries.forEach((entry) => {
+      const item = document.createElement('div');
+      item.className = 'note-history-item';
+
+      let summariesHtml = '';
+      entry.summaries.forEach(s => {
+        summariesHtml += `<div class="note-history-summary">${escapeHtml(s)}</div>`;
+      });
+
+      item.innerHTML = `
+        <div class="note-history-date">
+          <span class="note-history-day">${escapeHtml(entry.day)}</span>
+          <span class="note-history-month">${escapeHtml(entry.month)}</span>
+        </div>
+        <div class="note-history-summaries">${summariesHtml}</div>
+      `;
+
+      item.addEventListener('click', () => {
+        noteHistoryPanel.classList.remove('active');
+        if (entry.isCurrent) {
+          // Back to current conversation
+          openNotePage();
+        } else {
+          // Load history conversation
+          renderHistoryConversation(entry);
+        }
+      });
+
+      noteHistoryList.appendChild(item);
+    });
+
+    // Add bottom divider
+    const bottomDivider = document.createElement('div');
+    bottomDivider.className = 'note-history-bottom-divider';
+    noteHistoryList.appendChild(bottomDivider);
+
+    noteHistoryPanel.classList.add('active');
+  }
+
+  if (notePageHistory) {
+    notePageHistory.addEventListener('click', openNoteHistory);
+  }
+
+  if (noteHistoryClose) {
+    noteHistoryClose.addEventListener('click', () => {
+      noteHistoryPanel.classList.remove('active');
+    });
+  }
+
+  // Input toggle mic/send + auto-resize
+  if (notePageInput) {
+    function autoResizeNoteInput() {
+      notePageInput.style.height = 'auto';
+      notePageInput.style.height = notePageInput.scrollHeight + 'px';
+    }
+
+    notePageInput.addEventListener('input', () => {
+      autoResizeNoteInput();
+      if (notePageInput.value.trim().length > 0) {
+        notePageMicBtn.classList.add('hidden');
+        notePageSendBtn.classList.remove('hidden');
+      } else {
+        notePageSendBtn.classList.add('hidden');
+        notePageMicBtn.classList.remove('hidden');
+      }
+    });
+
+    notePageInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendNoteMessage();
+      }
+    });
+  }
+
+  if (notePageSendBtn) {
+    notePageSendBtn.addEventListener('click', sendNoteMessage);
+  }
+
+  // Demo mock title suggestions based on content keywords
+  const mockTitleSuggestions = [
+    'Mindful Moments',
+    'Spark of Inspiration',
+    'Daily Reflection',
+    'Creative Thinking',
+    'Goal Planning',
+    'Learning Notes',
+  ];
+  let mockTitleIndex = 0;
+
+  // State: null = waiting for content, object = waiting for title
+  let pendingNoteData = null;
+  let pendingNoteCardEl = null;
+
+  function sendNoteMessage() {
+    const text = notePageInput.value.trim();
+    if (!text) return;
+
+    // Show user message
+    const userMsg = document.createElement('div');
+    userMsg.className = 'note-page-ai-msg';
+    userMsg.style.alignSelf = 'flex-end';
+    userMsg.style.flexDirection = 'row-reverse';
+    userMsg.innerHTML = `<div class="message-bubble note-user-bubble"></div>`;
+    userMsg.querySelector('.message-bubble').textContent = text;
+    notePageContent.appendChild(userMsg);
+
+    notePageInput.value = '';
+    notePageInput.style.height = 'auto';
+    notePageSendBtn.classList.add('hidden');
+    notePageMicBtn.classList.remove('hidden');
+
+    addNotePageTypingIndicator();
+    notePageContent.scrollTop = notePageContent.scrollHeight;
+
+    if (pendingNoteData) {
+      // User is providing a title for the pending note
+      setTimeout(() => {
+        removeNotePageTypingIndicator();
+
+        // Update the note data and old card
+        pendingNoteData.title = text;
+        if (pendingNoteCardEl) {
+          pendingNoteCardEl.querySelector('.note-card-item-title').textContent = text;
+        }
+
+        // Order: label row → text → card
+        addNotePageLabelRow();
+        addNotePageAiMessage(`Great title! Your note has been updated.`, false);
+        addNotePageCard(pendingNoteData);
+
+        // Reset state
+        pendingNoteData = null;
+        pendingNoteCardEl = null;
+      }, 800);
+    } else {
+      // User is providing note content — create card with "Untitled"
+      setTimeout(() => {
+        removeNotePageTypingIndicator();
+
+        const noteData = {
+          title: 'Untitled',
+          content: text
+        };
+        createdNotes.push(noteData);
+
+        // AI suggests a title
+        const suggestion = mockTitleSuggestions[mockTitleIndex % mockTitleSuggestions.length];
+        mockTitleIndex++;
+
+        // Order: label row → text → card
+        addNotePageLabelRow();
+        addNotePageAiMessage(`Note recorded! Would you like to add a title? I suggest: "${suggestion}", or type your own.`, false);
+        pendingNoteCardEl = addNotePageCard(noteData);
+        pendingNoteData = noteData;
+      }, 1000);
+    }
+  }
+
+  // Render note cards in main chat after closing note page
+  function renderNotesInChat(notes) {
+    const count = notes.length;
+    const summaryText = `You have ${count} note${count > 1 ? 's' : ''}. 📝`;
+
+    const msgEl = document.createElement('div');
+    msgEl.className = 'chat-message ai-message schedule-card-message';
+    msgEl.innerHTML = `
+      <div class="schedule-card-label-row">
+        <div class="message-avatar">
+          <img src="logo for talk.svg" width="40" height="40" alt="Elisi">
+        </div>
+        <div class="ai-label">Elisi</div>
+      </div>
+      <div class="card-intro-bubble"><div class="message-bubble">${escapeHtml(summaryText)}</div></div>
+      <div class="chat-note-cards"></div>
+    `;
+
+    const cardsContainer = msgEl.querySelector('.chat-note-cards');
+    notes.forEach(note => {
+      const card = document.createElement('div');
+      card.className = 'note-card-item' + (note.image ? ' has-image' : '');
+      if (note.image) {
+        card.innerHTML = `
+          <img class="note-card-item-img" src="${note.image}" alt="">
+          <div class="note-card-item-text">
+            <div class="note-card-item-title"></div>
+            <div class="note-card-item-desc"></div>
+          </div>
+        `;
+      } else {
+        card.innerHTML = `
+          <div class="note-card-item-title"></div>
+          <div class="note-card-item-desc"></div>
+        `;
+      }
+      card.querySelector('.note-card-item-title').textContent = note.title;
+      card.querySelector('.note-card-item-desc').textContent = note.content;
+      card.addEventListener('click', () => {
+        openNoteDetail(note);
+      });
+      cardsContainer.appendChild(card);
+    });
+
+    chatMessages.appendChild(msgEl);
+    scrollToChat(msgEl);
   }
 
 })();
