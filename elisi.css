@@ -2294,3 +2294,33 @@ body {
   width: 100%;
 }
 
+.note-count-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: -2px;
+  padding: 10px 12px;
+  height: 42px;
+  width: fit-content;
+  box-sizing: border-box;
+  background: #F5F5F5;
+  border: 0.6px solid rgba(0, 0, 0, 0.08);
+  border-radius: 100px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 400;
+  color: #121212;
+  line-height: 15px;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.note-count-action-btn:active {
+  background: #EDEDED;
+}
+
+.note-count-action-btn .note-count-btn-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+

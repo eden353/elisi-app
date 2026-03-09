@@ -67,6 +67,9 @@ When the user asks to modify/update the most recently created note (e.g. "把标
 {"type":"note_update","introText":"A brief confirmation message","title":"optional new title","content":"optional new content"}
 Only include the "title" and/or "content" fields that need to change.
 
+When the user asks about their note count, how many notes they have, or wants to check their notes (e.g. "我有多少笔记", "查看笔记数量", "how many notes do I have", "check my notes"), respond with ONLY this JSON:
+{"type":"note_count_card","introText":"A friendly response about their note count and a follow-up question guiding them to view or manage notes, e.g. asking if they want to view specific content or manage some notes"}
+
 For all other conversations, respond naturally as a friendly assistant. Do NOT output JSON for general chat. Maintain conversation context and respond naturally based on the ongoing dialogue.`;
 
   // DOM elements
@@ -1090,6 +1093,44 @@ For all other conversations, respond naturally as a friendly assistant. Do NOT o
     return msgEl;
   }
 
+  // --- Note Count Card Rendering ---
+  function renderNoteCountCard(data) {
+    const allNotes = [...historyNotes, ...createdNotes];
+    const totalCount = allNotes.length;
+
+    const introText = data.introText
+      ? data.introText.replace(/\d+\s*(条|个|篇|份)?\s*(笔记|notes?)/i, `${totalCount} ` + (data.introText.match(/(条|个|篇|份)?\s*(笔记)/) ? '$1笔记' : 'notes'))
+      : `You have ${totalCount} note${totalCount !== 1 ? 's' : ''}.`;
+
+    const msgEl = document.createElement('div');
+    msgEl.className = 'chat-message ai-message schedule-card-message';
+    msgEl.innerHTML = `
+      <div class="schedule-card-label-row">
+        <div class="message-avatar">
+          <img src="logo for talk.svg" width="40" height="40" alt="Elisi">
+        </div>
+        <div class="ai-label">Elisi</div>
+      </div>
+      <div class="card-intro-bubble"><div class="message-bubble"></div></div>
+      <div class="note-count-action-btn">
+        <span class="note-count-btn-icon">📒</span>
+        <span>查看所有笔记</span>
+      </div>
+    `;
+
+    const bubble = msgEl.querySelector('.message-bubble');
+    bubble.textContent = introText;
+
+    const actionBtn = msgEl.querySelector('.note-count-action-btn');
+    actionBtn.addEventListener('click', safeTap(() => {
+      openNotePage();
+    }));
+
+    chatMessages.appendChild(msgEl);
+    scrollToChat(msgEl);
+    return msgEl;
+  }
+
   // --- Gemini API (with schedule card support) ---
   async function callApi() {
     const url = `${API_BASE_URL}/v1/chat/completions`;
@@ -1140,7 +1181,7 @@ For all other conversations, respond naturally as a friendly assistant. Do NOT o
         cardData = JSON.parse(cleaned);
       } catch (e) {
         // Try to find a JSON object embedded in the text
-        const jsonMatch = reply.match(/\{[\s\S]*"type"\s*:\s*"(schedule_card|planner_card|note_card|note_update)"[\s\S]*\}/);
+        const jsonMatch = reply.match(/\{[\s\S]*"type"\s*:\s*"(schedule_card|planner_card|note_card|note_update|note_count_card)"[\s\S]*\}/);
         if (jsonMatch) {
           try {
             cardData = JSON.parse(jsonMatch[0]);
@@ -1154,7 +1195,7 @@ For all other conversations, respond naturally as a friendly assistant. Do NOT o
       function extractNaturalText(raw) {
         return raw
           .replace(/```json\n?[\s\S]*?```/g, '')
-          .replace(/\{[\s\S]*"type"\s*:\s*"(schedule_card|planner_card|note_card|note_update)"[\s\S]*\}/g, '')
+          .replace(/\{[\s\S]*"type"\s*:\s*"(schedule_card|planner_card|note_card|note_update|note_count_card)"[\s\S]*\}/g, '')
           .trim();
       }
 
@@ -1166,6 +1207,10 @@ For all other conversations, respond naturally as a friendly assistant. Do NOT o
         const text = extractNaturalText(reply);
         if (text) cardData.introText = cardData.introText || text;
         renderPlannerCard(cardData);
+      } else if (cardData?.type === 'note_count_card') {
+        const text = extractNaturalText(reply);
+        if (text) cardData.introText = cardData.introText || text;
+        renderNoteCountCard(cardData);
       } else if (cardData?.type === 'note_card') {
         const noteData = { title: cardData.title || 'Untitled', content: cardData.content || '', createdAt: Date.now() };
         if (lastChatImages.length > 0) {
