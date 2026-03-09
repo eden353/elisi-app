@@ -1,6 +1,6 @@
 (() => {
   const API_BASE_URL = 'https://api.vectorengine.ai';
-  let API_KEY = localStorage.getItem('ai_api_key') || '';
+  let API_KEY = '';
   const API_MODEL = 'gemini-2.5-pro';
 
   // --- Touch-scroll guard: prevent accidental taps while scrolling ---
@@ -41,7 +41,7 @@
 - Building good habits
 
 Keep responses concise, warm, and actionable. Use occasional emojis to stay friendly.
-You MUST respond in the SAME language the user writes in. If the user writes in Chinese, reply entirely in Chinese. If the user writes in English, reply entirely in English. If the user explicitly asks to switch language (e.g. "please reply in English", "用英文回答"), follow their request and continue using that language for subsequent responses. This applies to ALL fields including introText, title, summary, task names, note content, etc.
+Respond naturally in the same language the user uses. Follow the user's language preference.
 
 CRITICAL RULES:
 - NEVER include thinking process, reasoning, or explanations in your response.
@@ -374,7 +374,6 @@ For all other conversations, respond naturally as a friendly assistant. Do NOT o
   apiSaveBtn.addEventListener('click', () => {
     const key = apiKeyInput.value.trim();
     if (key) {
-      localStorage.setItem('ai_api_key', key);
       API_KEY = key;
       apiModal.classList.remove('active');
       // Retry sending if there was a pending message
@@ -387,6 +386,7 @@ For all other conversations, respond naturally as a friendly assistant. Do NOT o
   });
 
   apiCancelBtn.addEventListener('click', () => {
+    if (!API_KEY) return; // Prevent closing without entering a key
     apiModal.classList.remove('active');
   });
 
@@ -1673,7 +1673,7 @@ For all other conversations, respond naturally as a friendly assistant. Do NOT o
 
   const NOTE_SYSTEM_PROMPT = `You are Elisi, a friendly AI note assistant. Your job is to help users create and organize notes.
 
-You MUST respond in the SAME language the user writes in. If the user writes in Chinese, reply entirely in Chinese. If the user writes in English, reply entirely in English. If the user explicitly asks to switch language, follow their request and continue using that language.
+Respond naturally in the same language the user uses. Follow the user's language preference.
 
 CRITICAL RULES:
 - NEVER include thinking process or reasoning in your response.
