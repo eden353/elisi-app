@@ -41,7 +41,7 @@
 - Building good habits
 
 Keep responses concise, warm, and actionable. Use occasional emojis to stay friendly.
-You MUST ALWAYS respond in English, regardless of what language the user writes in. ALL fields including introText, title, summary, task names, note content, etc. MUST be in English.
+You MUST respond in the SAME language the user writes in. If the user writes in Chinese, reply entirely in Chinese. If the user writes in English, reply entirely in English. If the user explicitly asks to switch language (e.g. "please reply in English", "用英文回答"), follow their request and continue using that language for subsequent responses. This applies to ALL fields including introText, title, summary, task names, note content, etc.
 
 CRITICAL RULES:
 - NEVER include thinking process, reasoning, or explanations in your response.
@@ -61,6 +61,7 @@ When the user wants to create a note or record something (e.g. "记录一下", "
 Then, when the user provides the actual note content in their next message, generate ONLY this JSON:
 {"type":"note_card","introText":"A brief friendly message confirming the note was created","title":"Short title under 30 chars","content":"The full note content"}
 If the user provides both the intent and content together in one message (e.g. "帮我记一下明天要买牛奶"), generate the note_card JSON directly without asking.
+If the user sends an image and asks to create a note from it, describe the image content and generate the note_card JSON with the description as the content.
 
 For all other conversations, respond naturally as a friendly assistant. Do NOT output JSON for general chat. Maintain conversation context and respond naturally based on the ongoing dialogue.`;
 
@@ -83,6 +84,7 @@ For all other conversations, respond naturally as a friendly assistant. Do NOT o
   let conversationHistory = [];
   let isTyping = false;
   let chatUploadedImages = [];
+  let lastChatImages = [];
 
   const chatInputBox = document.getElementById('chatInputWrapper');
 
@@ -244,12 +246,36 @@ For all other conversations, respond naturally as a friendly assistant. Do NOT o
       appendMessage(text, 'user');
     }
 
-    const messageText = text || 'User sent an image';
+    // Build multimodal content if images are present
+    const images = [...chatUploadedImages];
     resetChatInput();
-    conversationHistory.push({ role: 'user', content: messageText });
+
+    // Store images for potential note_card creation by AI
+    lastChatImages = images;
+
+    if (images.length > 0) {
+      const contentParts = [];
+      images.forEach(src => {
+        const match = src.match(/^data:(image\/\w+);base64,(.+)$/);
+        if (match) {
+          contentParts.push({
+            type: 'image_url',
+            image_url: { url: src }
+          });
+        }
+      });
+      if (text) {
+        contentParts.push({ type: 'text', text });
+      } else {
+        contentParts.push({ type: 'text', text: 'Please describe what you see in this image.' });
+      }
+      conversationHistory.push({ role: 'user', content: contentParts });
+    } else {
+      conversationHistory.push({ role: 'user', content: text });
+    }
 
     showTypingIndicator();
-    callApi(messageText);
+    callApi();
   }
 
   function appendMessage(text, sender) {
@@ -355,7 +381,7 @@ For all other conversations, respond naturally as a friendly assistant. Do NOT o
       const lastUserMsg = conversationHistory[conversationHistory.length - 1];
       if (lastUserMsg?.role === 'user') {
         showTypingIndicator();
-        callApi(lastUserMsg.content);
+        callApi();
       }
     }
   });
@@ -722,7 +748,7 @@ For all other conversations, respond naturally as a friendly assistant. Do NOT o
     // Call API for real response
     conversationHistory.push({ role: 'user', content: text });
     showTypingIndicator();
-    callApi(text);
+    callApi();
   }
 
   function appendQuickActionMessage(text) {
@@ -1061,7 +1087,7 @@ For all other conversations, respond naturally as a friendly assistant. Do NOT o
   }
 
   // --- Gemini API (with schedule card support) ---
-  async function callApi(userMessage) {
+  async function callApi() {
     const url = `${API_BASE_URL}/v1/chat/completions`;
 
     const messages = [
@@ -1138,6 +1164,12 @@ For all other conversations, respond naturally as a friendly assistant. Do NOT o
         renderPlannerCard(cardData);
       } else if (cardData?.type === 'note_card') {
         const noteData = { title: cardData.title || 'Untitled', content: cardData.content || '', createdAt: Date.now() };
+        if (lastChatImages.length > 0) {
+          noteData.image = lastChatImages[0];
+          noteData.detailImage = lastChatImages[0];
+          noteData.images = [...lastChatImages];
+          lastChatImages = [];
+        }
         const text = extractNaturalText(reply);
         const intro = cardData.introText || text || null;
         renderNotesInChat([noteData], intro);
@@ -1641,7 +1673,7 @@ For all other conversations, respond naturally as a friendly assistant. Do NOT o
 
   const NOTE_SYSTEM_PROMPT = `You are Elisi, a friendly AI note assistant. Your job is to help users create and organize notes.
 
-You MUST ALWAYS respond in English, regardless of what language the user writes in.
+You MUST respond in the SAME language the user writes in. If the user writes in Chinese, reply entirely in Chinese. If the user writes in English, reply entirely in English. If the user explicitly asks to switch language, follow their request and continue using that language.
 
 CRITICAL RULES:
 - NEVER include thinking process or reasoning in your response.
@@ -1651,12 +1683,14 @@ CRITICAL RULES:
 IMPORTANT BEHAVIOR:
 - When the user expresses intent to create a note (e.g. "新建笔记", "记录一下", "create a note", "I want to write something down"), DO NOT create the note yet. Instead, ask what content they want to record. Respond naturally like: "好的，你想记录什么内容呢？😊"
 - When the user provides actual note content (not just an intent to create), directly create the note with a suitable title and optimized content. Respond with a brief confirmation.
+- When the user sends an image (with or without text), analyze the image content and directly create a note based on what you see. Describe the image content in the note.
 - For general conversation or requests to modify existing notes, respond naturally.
 
 To help you distinguish:
 - Intent messages: "新建笔记", "帮我记一下", "create a note", "I want to take a note" → Ask for content, do NOT create card
 - Content messages: actual text content like "明天要买牛奶", "Meeting notes: discussed Q3 targets" → This IS the note content, directly create with a title
 - If intent + content together: "帮我记一下明天要买牛奶" → This contains actual content, directly create with a title
+- Image messages: user sends an image → Analyze it and directly create a note with a descriptive title and content based on the image
 
 You must output ONLY a JSON object (no other text) in this format to indicate your decision:
 {"action":"ask","message":"your question asking for content"}
@@ -1671,9 +1705,26 @@ IMPORTANT for "create" action:
 - If the user asks you to help write, optimize, or enhance the note, put the improved content in the "content" field.
 - If the user just provides raw content without asking for optimization, still clean it up slightly and put it in the "content" field.`;
 
-  async function callNoteApi(text) {
+  async function callNoteApi(text, images) {
     const url = `${API_BASE_URL}/v1/chat/completions`;
-    noteConversationHistory.push({ role: 'user', content: text });
+
+    // Build multimodal content if images are provided
+    let userContent;
+    if (images && images.length > 0) {
+      const contentParts = [];
+      images.forEach(src => {
+        contentParts.push({
+          type: 'image_url',
+          image_url: { url: src }
+        });
+      });
+      contentParts.push({ type: 'text', text: text || 'Please describe what you see in this image and create a note based on it.' });
+      userContent = contentParts;
+    } else {
+      userContent = text;
+    }
+
+    noteConversationHistory.push({ role: 'user', content: userContent });
 
     const messages = [
       { role: 'system', content: NOTE_SYSTEM_PROMPT },
@@ -1725,7 +1776,11 @@ IMPORTANT for "create" action:
 
   function sendNoteMessage() {
     const text = notePageInput.value.trim();
-    if (!text) return;
+    const hasImages = pendingImages.length > 0;
+    if (!text && !hasImages) return;
+
+    // Capture images before clearing
+    const messagePendingImages = [...pendingImages];
 
     // Show user message
     const userMsg = document.createElement('div');
@@ -1733,11 +1788,21 @@ IMPORTANT for "create" action:
     userMsg.style.alignSelf = 'flex-end';
     userMsg.style.flexDirection = 'row-reverse';
     userMsg.innerHTML = `<div class="message-bubble note-user-bubble"></div>`;
-    userMsg.querySelector('.message-bubble').textContent = text;
+    const bubble = userMsg.querySelector('.message-bubble');
+    if (text) bubble.textContent = text;
+    else bubble.textContent = '';
+    messagePendingImages.forEach(src => {
+      const img = document.createElement('img');
+      img.src = src;
+      img.style.cssText = 'max-width:200px;border-radius:8px;margin-top:4px;display:block';
+      bubble.appendChild(img);
+    });
     notePageContent.appendChild(userMsg);
 
     notePageInput.value = '';
     notePageInput.style.height = 'auto';
+    pendingImages = [];
+    renderInputImages();
     notePageSendBtn.classList.add('hidden');
     notePageMicBtn.classList.remove('hidden');
     document.querySelector('#notePageInputBar .note-input-actions').classList.remove('typing');
@@ -1747,7 +1812,7 @@ IMPORTANT for "create" action:
 
     if (noteFlowState === 'waiting_content') {
       // User is providing actual note content after being asked
-      callNoteApi(text).then(({ action, message, content, title }) => {
+      callNoteApi(text, messagePendingImages).then(({ action, message, content, title }) => {
         removeNotePageTypingIndicator();
         if (action === 'create') {
           const noteData = {
@@ -1755,12 +1820,10 @@ IMPORTANT for "create" action:
             content: content || text,
             createdAt: Date.now()
           };
-          if (pendingImages.length > 0) {
-            noteData.image = pendingImages[0];
-            noteData.detailImage = pendingImages[0];
-            noteData.images = [...pendingImages];
-            pendingImages = [];
-            renderInputImages();
+          if (messagePendingImages.length > 0) {
+            noteData.image = messagePendingImages[0];
+            noteData.detailImage = messagePendingImages[0];
+            noteData.images = [...messagePendingImages];
           }
           createdNotes.push(noteData);
           addNotePageLabelRow();
@@ -1774,7 +1837,7 @@ IMPORTANT for "create" action:
       });
     } else {
       // idle — let API decide: ask for content or create directly
-      callNoteApi(text).then(({ action, message, content, title }) => {
+      callNoteApi(text, messagePendingImages).then(({ action, message, content, title }) => {
         removeNotePageTypingIndicator();
 
         if (action === 'ask') {
@@ -1787,12 +1850,10 @@ IMPORTANT for "create" action:
             content: content || text,
             createdAt: Date.now()
           };
-          if (pendingImages.length > 0) {
-            noteData.image = pendingImages[0];
-            noteData.detailImage = pendingImages[0];
-            noteData.images = [...pendingImages];
-            pendingImages = [];
-            renderInputImages();
+          if (messagePendingImages.length > 0) {
+            noteData.image = messagePendingImages[0];
+            noteData.detailImage = messagePendingImages[0];
+            noteData.images = [...messagePendingImages];
           }
           createdNotes.push(noteData);
 
