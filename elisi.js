@@ -1,6 +1,6 @@
 (() => {
   const API_BASE_URL = 'https://api.vectorengine.ai';
-  const API_KEY = 'sk-BzKLJgJkCvLYhft3fceSKu91N1jhbTAPAlwgmCvj6xUOVJkb';
+  const API_KEY = (typeof CONFIG !== 'undefined' && CONFIG.API_KEY) || '';
   const API_MODEL = 'gemini-2.5-pro';
 
   // --- Touch-scroll guard: prevent accidental taps while scrolling ---
