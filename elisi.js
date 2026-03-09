@@ -1,6 +1,9 @@
 (() => {
   const API_BASE_URL = 'https://api.vectorengine.ai';
-  const API_KEY = (typeof CONFIG !== 'undefined' && CONFIG.API_KEY) || '';
+  const API_KEY = localStorage.getItem('ai_api_key') || '';
+  if (!API_KEY) {
+    alert('请先设置 API Key。\n\n请在浏览器控制台执行：\nlocalStorage.setItem("ai_api_key", "你的API Key")\n\n设置后刷新页面即可。');
+  }
   const API_MODEL = 'gemini-2.5-pro';
 
   // --- Touch-scroll guard: prevent accidental taps while scrolling ---
