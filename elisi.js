@@ -1,6 +1,38 @@
 (() => {
-  const GEMINI_MODEL = 'gemini-2.0-flash';
-  const STORAGE_KEY = 'elisi_gemini_api_key';
+  const API_BASE_URL = 'https://api.vectorengine.ai';
+  const API_KEY = 'sk-BzKLJgJkCvLYhft3fceSKu91N1jhbTAPAlwgmCvj6xUOVJkb';
+  const API_MODEL = 'gemini-2.5-pro';
+
+  // --- Touch-scroll guard: prevent accidental taps while scrolling ---
+  const TOUCH_MOVE_THRESHOLD = 10; // px
+  let _touchStartX = 0;
+  let _touchStartY = 0;
+  let _touchMoved = false;
+
+  document.addEventListener('touchstart', (e) => {
+    const t = e.touches[0];
+    _touchStartX = t.clientX;
+    _touchStartY = t.clientY;
+    _touchMoved = false;
+  }, { passive: true });
+
+  document.addEventListener('touchmove', (e) => {
+    if (_touchMoved) return;
+    const t = e.touches[0];
+    const dx = Math.abs(t.clientX - _touchStartX);
+    const dy = Math.abs(t.clientY - _touchStartY);
+    if (dx > TOUCH_MOVE_THRESHOLD || dy > TOUCH_MOVE_THRESHOLD) {
+      _touchMoved = true;
+    }
+  }, { passive: true });
+
+  /** Wrap a click handler to only fire when the touch didn't scroll */
+  function safeTap(handler) {
+    return function (e) {
+      if (_touchMoved) return;
+      handler.call(this, e);
+    };
+  }
 
   const SYSTEM_PROMPT = `You are Elisi, a friendly and helpful AI life management assistant. You help users with:
 - Task management and formulation
@@ -9,48 +41,40 @@
 - Building good habits
 
 Keep responses concise, warm, and actionable. Use occasional emojis to stay friendly.
-Respond in the same language the user writes in.
+You MUST respond in the SAME language the user writes in. If the user writes in Chinese, reply entirely in Chinese. If the user writes in English, reply entirely in English. This applies to ALL fields including introText, title, summary, task names, note content, etc. Never mix languages in a single response.
 
-IMPORTANT: When the user asks about today's plans, schedule, or tasks (e.g. "What plans do we have for today?"), you MUST respond with ONLY a valid JSON object in this exact format, no other text:
-{
-  "type": "schedule_card",
-  "title": "Today's schedule",
-  "summary": "A brief 1-2 sentence summary of the day",
-  "tasks": [
-    {"name": "Task name", "time": "optional time like 09:00", "done": false},
-    {"name": "Another task", "time": "14:00", "done": false}
-  ],
-  "notes": [
-    {"content": "Note content"}
-  ]
-}
-Generate 2-4 realistic tasks and 0-2 notes. Keep it practical and helpful.
+CRITICAL RULES:
+- NEVER include thinking process, reasoning, or explanations in your response.
+- NEVER wrap JSON in markdown code blocks (no \`\`\`json or \`\`\`).
+- When a JSON response is required, output ONLY the raw JSON object, nothing else before or after it.
+- Do NOT add any text outside the JSON when a structured response is needed.
 
-IMPORTANT: When the user asks about this week's plans, weekly schedule, or weekly planner (e.g. "What's the plan for this week?", "查看本周计划"), you MUST respond with ONLY a valid JSON object in this exact format, no other text:
-{
-  "type": "planner_card",
-  "tasks": [
-    {"name": "Task name"},
-    {"name": "Another task"}
-  ]
-}
-Generate 2-4 realistic weekly tasks.
+When the user asks about today's plans, schedule, or tasks (e.g. "What plans do we have for today?", "今天有什么安排", "今日任务"), respond with ONLY this JSON:
+{"type":"schedule_card","introText":"A brief friendly intro","title":"Today's schedule","summary":"Brief summary","tasks":[{"name":"Task","time":"09:00","done":false}],"notes":[{"content":"Note"}]}
+Generate 2-4 tasks and 0-2 notes.
 
-IMPORTANT: When the user wants to create a note or record an idea/thought/inspiration, respond with ONLY a valid JSON object in this exact format, no other text:
-{
-  "type": "note_card",
-  "title": "Note title (concise summary)",
-  "content": "The full note content text"
-}
-Keep the title short (under 30 chars) and capture the essence. The content should elaborate on the user's idea.`;
+When the user asks about this week's plans, weekly schedule, weekly tasks (e.g. "What's the plan for this week?", "本周有什么任务", "查看本周计划", "这周安排"), respond with ONLY this JSON:
+{"type":"planner_card","introText":"A brief friendly intro","tasks":[{"name":"Task name"}]}
+Generate 2-4 weekly tasks.
+
+When the user wants to create a note or record something (e.g. "记录一下", "创建笔记", "帮我记一下"), DO NOT generate JSON immediately. Instead, reply naturally to ask what they want to record. For example: "好的，你想记录什么内容呢？😊"
+Then, when the user provides the actual note content in their next message, generate ONLY this JSON:
+{"type":"note_card","introText":"A brief friendly message confirming the note was created","title":"Short title under 30 chars","content":"The full note content"}
+If the user provides both the intent and content together in one message (e.g. "帮我记一下明天要买牛奶"), generate the note_card JSON directly without asking.
+
+For all other conversations, respond naturally as a friendly assistant. Do NOT output JSON for general chat. Maintain conversation context and respond naturally based on the ongoing dialogue.`;
 
   // DOM elements
   const mainContent = document.querySelector('.main-content');
-  const chatInputPlaceholder = document.getElementById('chatInputPlaceholder');
   const chatInput = document.getElementById('chatInput');
   const chatSendBtn = document.getElementById('chatSendBtn');
   const chatMicBtn = document.getElementById('chatMicBtn');
+  const chatImgBtn = document.getElementById('chatImgBtn');
+  const chatImgInput = document.getElementById('chatImgInput');
+  const chatInputImages = document.getElementById('chatInputImages');
+  const chatInputActions = document.getElementById('chatInputActions');
   const chatMessages = document.getElementById('chatMessages');
+  const chatToolBtn = document.getElementById('chatToolBtn');
   const apiModal = document.getElementById('apiModal');
   const apiKeyInput = document.getElementById('apiKeyInput');
   const apiSaveBtn = document.getElementById('apiSaveBtn');
@@ -58,40 +82,137 @@ Keep the title short (under 30 chars) and capture the essence. The content shoul
 
   let conversationHistory = [];
   let isTyping = false;
-  let chatActivated = false;
+  let chatUploadedImages = [];
 
-  // --- Activate chat inline ---
-  chatInputPlaceholder.addEventListener('click', activateChat);
+  const chatInputBox = document.getElementById('chatInputWrapper');
 
-  function activateChat() {
-    if (chatActivated) return;
-    chatActivated = true;
-    // Hide placeholder, show real input
-    chatInputPlaceholder.classList.add('hidden');
-    chatInput.classList.add('visible');
-    // Keep mic visible, send hidden until user types
-    chatInput.focus();
-  }
+  // --- Chat input state management ---
+  // State 1 (Inactive): bg #F5F5F5, no border, pic+voice visible, send hidden, tool btn visible
+  // State 2 (Active/typing): bg #FFF, border, pic+send visible, voice hidden, tool btn hidden
+  // State 3 (Multiline): same as active + border-radius 30 + auto-height
+  // State 4 (Image only): pic+voice+send visible, can send without text
 
-  function deactivateChat() {
-    chatActivated = false;
-    chatInput.value = '';
-    chatInput.classList.remove('visible');
-    chatInputPlaceholder.classList.remove('hidden');
-    chatSendBtn.classList.add('hidden');
-    chatMicBtn.classList.remove('hidden');
-  }
+  function updateChatInputState() {
+    const hasText = chatInput.value.trim().length > 0;
+    const hasImages = chatUploadedImages.length > 0;
 
-  // Toggle mic/send based on input content
-  chatInput.addEventListener('input', () => {
-    if (chatInput.value.trim().length > 0) {
+    // Auto-resize textarea
+    chatInput.style.height = 'auto';
+    const singleLineHeight = 34;
+    const maxInputHeight = 140;
+    const newHeight = Math.min(chatInput.scrollHeight, maxInputHeight);
+    chatInput.style.height = newHeight + 'px';
+    chatInput.style.overflowY = chatInput.scrollHeight > maxInputHeight ? 'auto' : 'hidden';
+
+    // Multiline detection
+    if (newHeight > singleLineHeight) {
+      chatInputBox.classList.add('multiline');
+    } else {
+      chatInputBox.classList.remove('multiline');
+    }
+
+    if (hasText) {
+      // State 2/3: typing - show send, hide voice
       chatMicBtn.classList.add('hidden');
       chatSendBtn.classList.remove('hidden');
-    } else {
-      chatSendBtn.classList.add('hidden');
+      chatInputBox.classList.add('has-text');
+    } else if (hasImages && !hasText) {
+      // State 4: image only - show voice + send
       chatMicBtn.classList.remove('hidden');
+      chatSendBtn.classList.remove('hidden');
+      chatInputBox.classList.remove('has-text');
+    } else {
+      // State 1: inactive or focused empty - show voice, hide send
+      chatMicBtn.classList.remove('hidden');
+      chatSendBtn.classList.add('hidden');
+      chatInputBox.classList.remove('has-text');
     }
+  }
+
+  // Focus: activate input, hide tool button
+  chatInput.addEventListener('focus', () => {
+    chatInputBox.classList.add('active');
+    chatToolBtn.classList.add('hidden');
+    updateChatInputState();
   });
+
+  // Blur: deactivate if empty and no images
+  chatInput.addEventListener('blur', () => {
+    setTimeout(() => {
+      const hasText = chatInput.value.trim().length > 0;
+      const hasImages = chatUploadedImages.length > 0;
+      if (!hasText && !hasImages) {
+        chatInputBox.classList.remove('active');
+        chatToolBtn.classList.remove('hidden');
+      }
+    }, 150);
+  });
+
+  chatInput.addEventListener('input', () => {
+    updateChatInputState();
+  });
+
+  // --- Chat image upload ---
+  chatImgBtn.addEventListener('click', () => {
+    chatImgInput.click();
+  });
+
+  chatImgInput.addEventListener('change', (e) => {
+    const files = Array.from(e.target.files);
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        chatUploadedImages.push(ev.target.result);
+        renderChatImagePreviews();
+        updateChatInputState();
+        // Activate input state when images are added
+        chatInputBox.classList.add('active');
+        chatToolBtn.classList.add('hidden');
+      };
+      reader.readAsDataURL(file);
+    });
+    chatImgInput.value = '';
+  });
+
+  function renderChatImagePreviews() {
+    chatInputImages.innerHTML = '';
+    if (chatUploadedImages.length === 0) {
+      chatInputImages.classList.remove('has-images');
+      return;
+    }
+    chatInputImages.classList.add('has-images');
+    chatUploadedImages.forEach((src, idx) => {
+      const item = document.createElement('div');
+      item.className = 'preview-item';
+      item.innerHTML = `<img src="${src}" class="preview-thumb"><button class="preview-remove" data-idx="${idx}">&times;</button>`;
+      chatInputImages.appendChild(item);
+    });
+    chatInputImages.querySelectorAll('.preview-remove').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const idx = parseInt(e.target.dataset.idx);
+        chatUploadedImages.splice(idx, 1);
+        renderChatImagePreviews();
+        updateChatInputState();
+        if (chatUploadedImages.length === 0 && !chatInput.value.trim()) {
+          chatInputBox.classList.remove('active');
+          chatToolBtn.classList.remove('hidden');
+        }
+      });
+    });
+  }
+
+  function resetChatInput() {
+    chatInput.value = '';
+    chatInput.style.height = 'auto';
+    chatUploadedImages = [];
+    renderChatImagePreviews();
+    chatSendBtn.classList.add('hidden');
+    chatMicBtn.classList.remove('hidden');
+    chatInputBox.classList.remove('multiline');
+    chatInputBox.classList.remove('active');
+    chatInputBox.classList.remove('has-text');
+    chatToolBtn.classList.remove('hidden');
+  }
 
   // --- Send Message ---
   chatSendBtn.addEventListener('click', sendMessage);
@@ -102,32 +223,33 @@ Keep the title short (under 30 chars) and capture the essence. The content shoul
     }
   });
 
-  // Click outside input to deactivate
-  document.addEventListener('click', (e) => {
-    if (!chatActivated) return;
-    const wrapper = document.getElementById('chatInputWrapper');
-    if (!wrapper.contains(e.target)) {
-      deactivateChat();
-    }
-  });
-
   function sendMessage() {
     const text = chatInput.value.trim();
-    if (!text || isTyping) return;
+    const hasImages = chatUploadedImages.length > 0;
+    if ((!text && !hasImages) || isTyping) return;
 
-    const apiKey = getApiKey();
-    if (!apiKey) {
-      showApiModal();
-      return;
+    // Show user message with images if any
+    if (hasImages) {
+      const userMsg = appendMessage(text || '(image)', 'user');
+      const bubble = userMsg.querySelector('.message-bubble');
+      if (text) bubble.textContent = text;
+      else bubble.textContent = '';
+      chatUploadedImages.forEach(src => {
+        const img = document.createElement('img');
+        img.src = src;
+        img.style.cssText = 'max-width:200px;border-radius:8px;margin-top:4px;display:block';
+        bubble.appendChild(img);
+      });
+    } else {
+      appendMessage(text, 'user');
     }
 
-    appendMessage(text, 'user');
-    chatInput.value = '';
-    deactivateChat();
-    conversationHistory.push({ role: 'user', parts: [{ text }] });
+    const messageText = text || 'User sent an image';
+    resetChatInput();
+    conversationHistory.push({ role: 'user', content: messageText });
 
     showTypingIndicator();
-    callGemini(apiKey, text);
+    callApi(messageText);
   }
 
   function appendMessage(text, sender) {
@@ -217,12 +339,8 @@ Keep the title short (under 30 chars) and capture the essence. The content shoul
   // (moved to bottom with schedule card support)
 
   // --- API Key Management ---
-  function getApiKey() {
-    return localStorage.getItem(STORAGE_KEY);
-  }
-
   function showApiModal() {
-    apiKeyInput.value = getApiKey() || '';
+    apiKeyInput.value = '';
     apiModal.classList.add('active');
     setTimeout(() => apiKeyInput.focus(), 100);
   }
@@ -230,13 +348,13 @@ Keep the title short (under 30 chars) and capture the essence. The content shoul
   apiSaveBtn.addEventListener('click', () => {
     const key = apiKeyInput.value.trim();
     if (key) {
-      localStorage.setItem(STORAGE_KEY, key);
+      localStorage.setItem('elisi_api_key', key);
       apiModal.classList.remove('active');
       // Retry sending if there was a pending message
       const lastUserMsg = conversationHistory[conversationHistory.length - 1];
       if (lastUserMsg?.role === 'user') {
         showTypingIndicator();
-        callGemini(key, lastUserMsg.parts[0].text);
+        callApi(lastUserMsg.content);
       }
     }
   });
@@ -579,63 +697,26 @@ Keep the title short (under 30 chars) and capture the essence. The content shoul
   // --- Goal Card Quick Action ---
   const goalCards = document.querySelectorAll('.goal-card');
   if (goalCards[0]) {
-    goalCards[0].addEventListener('click', () => {
+    goalCards[0].addEventListener('click', safeTap(() => {
       sendQuickAction('What\'s the plan for this week?');
-    });
+    }));
   }
   if (goalCards[1]) {
-    goalCards[1].addEventListener('click', () => {
+    goalCards[1].addEventListener('click', safeTap(() => {
       sendQuickAction('What plans do we have for today?');
-    });
+    }));
   }
 
   function sendQuickAction(text) {
     if (isTyping) return;
 
-    // Activate chat UI
-    if (!chatActivated) {
-      chatActivated = true;
-      chatInputPlaceholder.classList.add('hidden');
-      chatInput.classList.add('visible');
-      chatSendBtn.classList.remove('hidden');
-      chatMicBtn.classList.add('hidden');
-    }
-
     // Append user message with quick-action style
     appendQuickActionMessage(text);
 
-    // Demo mode: simulate AI response with mock data
+    // Call API for real response
+    conversationHistory.push({ role: 'user', content: text });
     showTypingIndicator();
-    setTimeout(() => {
-      removeTypingIndicator();
-      if (text.includes('this week') || text.includes('本周')) {
-        renderPlannerCard({
-          introText: "Here are your tasks for this week, please check! \u{1F4CB}",
-          tasks: [
-            { name: '\u{1F468}\u200D\u{1F4BB} Vibe Coding' },
-            { name: '\u{1F6B4}\u{1F3FB} Cycling workout' },
-            { name: 'Weekly meeting' }
-          ]
-        });
-      } else {
-        const now = new Date();
-        const hours = now.getHours();
-        renderScheduleCard({
-          introText: "Here's your schedule for today, take a look! \u{1F4C5}",
-          type: 'schedule_card',
-          title: "Today's schedule",
-          summary: 'Today is steady, starting with creating a study plan, mainly to recharge myself.',
-          tasks: [
-            { name: 'Create a weekly study plan', time: '09:00', done: hours >= 9 },
-            { name: 'Readerta Chapter 3-5', time: '10:30', done: false },
-            { name: 'Practice English listening', time: '14:00', done: false }
-          ],
-          notes: [
-            { content: 'Remember to review notes from last week' }
-          ]
-        });
-      }
-    }, 1200);
+    callApi(text);
   }
 
   function appendQuickActionMessage(text) {
@@ -753,14 +834,14 @@ Keep the title short (under 30 chars) and capture the essence. The content shoul
       scrollToChat(msgEl);
     }
 
-    collapsed.addEventListener('click', expandCards);
-    msgEl.querySelector('.collapse-btn').addEventListener('click', collapseCardsHandler);
+    collapsed.addEventListener('click', safeTap(expandCards));
+    msgEl.querySelector('.collapse-btn').addEventListener('click', safeTap(collapseCardsHandler));
 
     // Click expanded task cards to open detail panel
     const expandedCards = msgEl.querySelectorAll('.expanded-card.task-card-large, .expanded-card.task-card-small');
     expandedCards.forEach((card) => {
       card.style.cursor = 'pointer';
-      card.addEventListener('click', (e) => {
+      card.addEventListener('click', safeTap((e) => {
         e.stopPropagation();
         const titleEl = card.querySelector('.expanded-card-title');
         const descEl = card.querySelector('.expanded-card-desc');
@@ -773,7 +854,7 @@ Keep the title short (under 30 chars) and capture the essence. The content shoul
           color: colorBar ? colorBar.style.background : '#E9DFD1',
           subtasks: []
         });
-      });
+      }));
     });
 
     chatMessages.appendChild(msgEl);
@@ -881,7 +962,7 @@ Keep the title short (under 30 chars) and capture the essence. The content shoul
     function bindTaskClicks() {
       taskListContainer.querySelectorAll('.planner-task-item').forEach((item) => {
         item.style.cursor = 'pointer';
-        item.addEventListener('click', () => {
+        item.addEventListener('click', safeTap(() => {
           const dayIdx = parseInt(item.dataset.day);
           const taskIdx = parseInt(item.dataset.task);
           const task = dailyTasks[dayIdx]?.[taskIdx];
@@ -892,7 +973,7 @@ Keep the title short (under 30 chars) and capture the essence. The content shoul
             color: task.color,
             subtasks: task.subtasks ? task.subtasks.map(s => ({ ...s })) : []
           });
-        });
+        }));
       });
     }
 
@@ -908,10 +989,10 @@ Keep the title short (under 30 chars) and capture the essence. The content shoul
     function bindDayClicks() {
       daysContainer.querySelectorAll('.planner-day-col').forEach((col) => {
         col.style.cursor = 'pointer';
-        col.addEventListener('click', () => {
+        col.addEventListener('click', safeTap(() => {
           selectedDayIndex = parseInt(col.dataset.day);
           updateDisplay();
-        });
+        }));
       });
     }
 
@@ -974,25 +1055,29 @@ Keep the title short (under 30 chars) and capture the essence. The content shoul
   }
 
   // --- Gemini API (with schedule card support) ---
-  async function callGemini(apiKey, userMessage) {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
+  async function callApi(userMessage) {
+    const url = `${API_BASE_URL}/v1/chat/completions`;
+
+    const messages = [
+      { role: 'system', content: SYSTEM_PROMPT },
+      ...conversationHistory
+    ];
 
     const body = {
-      systemInstruction: {
-        parts: [{ text: SYSTEM_PROMPT }]
-      },
-      contents: conversationHistory,
-      generationConfig: {
-        temperature: 0.8,
-        topP: 0.95,
-        maxOutputTokens: 1024
-      }
+      model: API_MODEL,
+      messages,
+      temperature: 0.8,
+      top_p: 0.95,
+      max_tokens: 1024
     };
 
     try {
       const response = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${API_KEY}`
+        },
         body: JSON.stringify(body)
       });
 
@@ -1003,43 +1088,66 @@ Keep the title short (under 30 chars) and capture the essence. The content shoul
         throw new Error(errMsg);
       }
 
-      const reply = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      const reply = data.choices?.[0]?.message?.content;
       if (!reply) {
-        const blockReason = data.candidates?.[0]?.finishReason || 'unknown';
-        throw new Error(`No response (reason: ${blockReason})`);
+        throw new Error('No response from API');
       }
 
       removeTypingIndicator();
 
-      // Try to parse as card JSON
+      // Try to extract and parse card JSON from reply
       let cardData = null;
       try {
-        const cleaned = reply.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+        // Strip markdown code blocks if present
+        let cleaned = reply.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+        // Try direct parse first
         cardData = JSON.parse(cleaned);
       } catch (e) {
-        // Not JSON, render as normal text
+        // Try to find a JSON object embedded in the text
+        const jsonMatch = reply.match(/\{[\s\S]*"type"\s*:\s*"(schedule_card|planner_card|note_card)"[\s\S]*\}/);
+        if (jsonMatch) {
+          try {
+            cardData = JSON.parse(jsonMatch[0]);
+          } catch (e2) {
+            // Could not parse, treat as text
+          }
+        }
+      }
+
+      // Extract natural language text (everything outside the JSON block)
+      function extractNaturalText(raw) {
+        return raw
+          .replace(/```json\n?[\s\S]*?```/g, '')
+          .replace(/\{[\s\S]*"type"\s*:\s*"(schedule_card|planner_card|note_card)"[\s\S]*\}/g, '')
+          .trim();
       }
 
       if (cardData?.type === 'schedule_card') {
+        const text = extractNaturalText(reply);
+        if (text) cardData.introText = cardData.introText || text;
         renderScheduleCard(cardData);
       } else if (cardData?.type === 'planner_card') {
+        const text = extractNaturalText(reply);
+        if (text) cardData.introText = cardData.introText || text;
         renderPlannerCard(cardData);
       } else if (cardData?.type === 'note_card') {
-        const noteData = { title: cardData.title || 'Untitled', content: cardData.content || '' };
-        renderNotesInChat([noteData]);
+        const noteData = { title: cardData.title || 'Untitled', content: cardData.content || '', createdAt: Date.now() };
+        const text = extractNaturalText(reply);
+        const intro = cardData.introText || text || null;
+        renderNotesInChat([noteData], intro);
+        createdNotes.push(noteData);
+        syncedNoteCount = createdNotes.length;
       } else {
         const msgEl = appendMessage('', 'ai');
         typewriterEffect(msgEl.querySelector('.message-bubble'), reply);
       }
 
-      conversationHistory.push({ role: 'model', parts: [{ text: reply }] });
+      conversationHistory.push({ role: 'assistant', content: reply });
 
     } catch (error) {
       removeTypingIndicator();
       let errorMsg;
-      if (error.message.includes('API_KEY_INVALID') || error.message.includes('API key not valid')) {
-        errorMsg = 'API Key 无效，请检查后重试。长按左上角 Elisi 图标可重新设置。';
-      } else if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+      if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
         errorMsg = '网络连接失败，请检查网络后重试。';
       } else {
         errorMsg = `出错了: ${error.message}`;
@@ -1050,7 +1158,6 @@ Keep the title short (under 30 chars) and capture the essence. The content shoul
   // --- Quick Record Menu ---
   const quickRecordOverlay = document.getElementById('quickRecordOverlay');
   const quickRecordClose = document.getElementById('quickRecordClose');
-  const chatToolBtn = document.querySelector('.chat-tool-btn');
 
   if (chatToolBtn && quickRecordOverlay) {
     chatToolBtn.addEventListener('click', () => {
@@ -1077,7 +1184,7 @@ Keep the title short (under 30 chars) and capture the essence. The content shoul
           return;
         }
 
-        activateChat();
+        chatInput.focus();
         const prompts = {
           planner: 'Help me plan my schedule for today',
           tasks: 'I want to add a new task',
@@ -1107,9 +1214,9 @@ Keep the title short (under 30 chars) and capture the essence. The content shoul
   const noteInputImages = document.getElementById('noteInputImages');
   // All notes from history mock data
   const historyNotes = [
-    { title: "Today's Insight", content: 'The reason for our happiness lies within ourselves, not outside of ourselves.', image: 'pic_note.png', detailImage: 'note-detail-img.png' },
-    { title: 'Remember to take the keys', content: 'Always check before leaving: keys, wallet, phone. Put a reminder note on the door handle tonight.' },
-    { title: 'The Courage to Be Disliked', content: 'It hopes that I can be disliked this year. True freedom comes from not seeking validation from others. Adlerian psychology teaches us that all problems are interpersonal relationship problems.' },
+    { title: "Today's Insight", content: 'The reason for our happiness lies within ourselves, not outside of ourselves.', image: 'pic_note.png', detailImage: 'note-detail-img.png', createdAt: new Date('2025-02-21').getTime() },
+    { title: 'Remember to take the keys', content: 'Always check before leaving: keys, wallet, phone. Put a reminder note on the door handle tonight.', createdAt: new Date('2025-02-24').getTime() },
+    { title: 'The Courage to Be Disliked', content: 'It hopes that I can be disliked this year. True freedom comes from not seeking validation from others. Adlerian psychology teaches us that all problems are interpersonal relationship problems.', createdAt: new Date('2025-03-01').getTime() },
   ];
 
   function openNotePage() {
@@ -1126,7 +1233,8 @@ Keep the title short (under 30 chars) and capture the essence. The content shoul
     const noteHistoryPanel = document.getElementById('noteHistoryPanel');
     if (noteHistoryPanel) noteHistoryPanel.classList.remove('active');
 
-    const allNotes = [...historyNotes, ...createdNotes];
+    const allNotes = [...historyNotes, ...createdNotes]
+      .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
     const totalNotes = allNotes.length;
 
     notePageContent.innerHTML = '';
@@ -1218,9 +1326,9 @@ Keep the title short (under 30 chars) and capture the essence. The content shoul
       descEl.classList.add('placeholder');
     }
     card._noteData = noteData;
-    card.addEventListener('click', () => {
+    card.addEventListener('click', safeTap(() => {
       openNoteDetail(noteData);
-    });
+    }));
     return card;
   }
 
@@ -1437,12 +1545,23 @@ Keep the title short (under 30 chars) and capture the essence. The content shoul
 
   // Input toggle mic/send + auto-resize
   if (notePageInput) {
+    const noteBox = notePageInput.closest('.note-input-box');
+    const singleLineH = 34;
+    const maxNoteInputH = 140;
+
     function autoResizeNoteInput() {
       notePageInput.style.height = 'auto';
-      notePageInput.style.height = notePageInput.scrollHeight + 'px';
+      const h = Math.min(notePageInput.scrollHeight, maxNoteInputH);
+      notePageInput.style.height = h + 'px';
+      notePageInput.style.overflowY = notePageInput.scrollHeight > maxNoteInputH ? 'auto' : 'hidden';
+      if (h > singleLineH) {
+        noteBox.classList.add('multiline');
+      } else {
+        noteBox.classList.remove('multiline');
+      }
     }
 
-    const noteInputActions = document.querySelector('.note-input-actions');
+    const noteInputActions = document.querySelector('#notePageInputBar .note-input-actions');
 
     notePageInput.addEventListener('input', () => {
       autoResizeNoteInput();
@@ -1511,18 +1630,89 @@ Keep the title short (under 30 chars) and capture the essence. The content shoul
     });
   }
 
-  // Demo mock title suggestions based on content keywords
-  const mockTitleSuggestions = [
-    'Mindful Moments',
-    'Spark of Inspiration',
-    'Daily Reflection',
-    'Creative Thinking',
-    'Goal Planning',
-    'Learning Notes',
-  ];
-  let mockTitleIndex = 0;
+  // Note page conversation history (separate from chat)
+  let noteConversationHistory = [];
 
-  // State: null = waiting for content, object = waiting for title
+  const NOTE_SYSTEM_PROMPT = `You are Elisi, a friendly AI note assistant. Your job is to help users create and organize notes.
+
+You MUST respond in the SAME language the user writes in.
+
+CRITICAL RULES:
+- NEVER include thinking process or reasoning in your response.
+- NEVER wrap anything in code blocks.
+- Respond with natural language only.
+
+IMPORTANT BEHAVIOR:
+- When the user expresses intent to create a note (e.g. "新建笔记", "记录一下", "create a note", "I want to write something down"), DO NOT create the note yet. Instead, ask what content they want to record. Respond naturally like: "好的，你想记录什么内容呢？😊"
+- When the user provides actual note content (not just an intent to create), respond by confirming the note was recorded and suggest a short title for it.
+- When the user provides a title or confirms, respond with a brief friendly confirmation.
+- For general conversation, respond naturally.
+
+To help you distinguish:
+- Intent messages: "新建笔记", "帮我记一下", "create a note", "I want to take a note" → Ask for content, do NOT create card
+- Content messages: actual text content like "明天要买牛奶", "Meeting notes: discussed Q3 targets" → This IS the note content, confirm and suggest title
+- If intent + content together: "帮我记一下明天要买牛奶" → This contains actual content, confirm and suggest title
+
+You must output ONLY a JSON object (no other text) in this format to indicate your decision:
+{"action":"ask","message":"your question asking for content"}
+or
+{"action":"create","message":"your confirmation and title suggestion"}
+or
+{"action":"title_confirmed","message":"your confirmation"}
+or
+{"action":"chat","message":"your natural response"}`;
+
+  async function callNoteApi(text) {
+    const url = `${API_BASE_URL}/v1/chat/completions`;
+    noteConversationHistory.push({ role: 'user', content: text });
+
+    const messages = [
+      { role: 'system', content: NOTE_SYSTEM_PROMPT },
+      ...noteConversationHistory
+    ];
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${API_KEY}`
+        },
+        body: JSON.stringify({ model: API_MODEL, messages, temperature: 0.8, max_tokens: 1024 })
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error?.message || `API error: ${response.status}`);
+
+      const reply = data.choices?.[0]?.message?.content;
+      if (!reply) throw new Error('No response from API');
+
+      noteConversationHistory.push({ role: 'assistant', content: reply });
+
+      // Parse action JSON
+      let parsed = null;
+      try {
+        let cleaned = reply.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+        parsed = JSON.parse(cleaned);
+      } catch (e) {
+        const jsonMatch = reply.match(/\{[\s\S]*"action"\s*:[\s\S]*\}/);
+        if (jsonMatch) {
+          try { parsed = JSON.parse(jsonMatch[0]); } catch (e2) {}
+        }
+      }
+
+      if (parsed && parsed.action && parsed.message) {
+        return { action: parsed.action, message: parsed.message };
+      }
+      // Fallback: treat as plain chat
+      return { action: 'chat', message: reply };
+    } catch (error) {
+      return { action: 'error', message: error.message };
+    }
+  }
+
+  // States: 'idle' | 'waiting_content' | 'waiting_title'
+  let noteFlowState = 'idle';
   let pendingNoteData = null;
   let pendingNoteCardEl = null;
 
@@ -1543,67 +1733,96 @@ Keep the title short (under 30 chars) and capture the essence. The content shoul
     notePageInput.style.height = 'auto';
     notePageSendBtn.classList.add('hidden');
     notePageMicBtn.classList.remove('hidden');
-    document.querySelector('.note-input-actions').classList.remove('typing');
+    document.querySelector('#notePageInputBar .note-input-actions').classList.remove('typing');
 
     addNotePageTypingIndicator();
     notePageContent.scrollTop = notePageContent.scrollHeight;
 
-    if (pendingNoteData) {
-      // User is providing a title for the pending note
-      setTimeout(() => {
+    if (noteFlowState === 'waiting_title') {
+      // User is providing a title
+      pendingNoteData.title = text;
+      if (pendingNoteCardEl) {
+        pendingNoteCardEl.querySelector('.note-card-item-title').textContent = text;
+      }
+
+      callNoteApi(text).then(({ message }) => {
         removeNotePageTypingIndicator();
-
-        // Update the note data and old card
-        pendingNoteData.title = text;
-        if (pendingNoteCardEl) {
-          pendingNoteCardEl.querySelector('.note-card-item-title').textContent = text;
-        }
-
-        // Order: label row → text → card
         addNotePageLabelRow();
-        addNotePageAiMessage(`Great title! Your note has been updated.`, false);
+        addNotePageAiMessage(message, false);
         addNotePageCard(pendingNoteData);
 
-        // Reset state
+        noteFlowState = 'idle';
         pendingNoteData = null;
         pendingNoteCardEl = null;
-      }, 800);
-    } else {
-      // User is providing note content — create card with "Untitled"
-      setTimeout(() => {
+      });
+    } else if (noteFlowState === 'waiting_content') {
+      // User is providing actual note content after being asked
+      const noteData = {
+        title: 'Untitled',
+        content: text,
+        createdAt: Date.now()
+      };
+      if (pendingImages.length > 0) {
+        noteData.image = pendingImages[0];
+        noteData.detailImage = pendingImages[0];
+        noteData.images = [...pendingImages];
+        pendingImages = [];
+        renderInputImages();
+      }
+      createdNotes.push(noteData);
+
+      callNoteApi(text).then(({ message }) => {
         removeNotePageTypingIndicator();
-
-        const noteData = {
-          title: 'Untitled',
-          content: text
-        };
-        // Attach pending images if any
-        if (pendingImages.length > 0) {
-          noteData.image = pendingImages[0];
-          noteData.detailImage = pendingImages[0];
-          noteData.images = [...pendingImages];
-          pendingImages = [];
-          renderInputImages();
-        }
-        createdNotes.push(noteData);
-
-        // AI suggests a title
-        const suggestion = mockTitleSuggestions[mockTitleIndex % mockTitleSuggestions.length];
-        mockTitleIndex++;
-
-        // Order: label row → text → card
         addNotePageLabelRow();
-        addNotePageAiMessage(`Note recorded! Would you like to add a title? I suggest: "${suggestion}", or type your own.`, false);
+        addNotePageAiMessage(message, false);
         pendingNoteCardEl = addNotePageCard(noteData);
         pendingNoteData = noteData;
-      }, 1000);
+        noteFlowState = 'waiting_title';
+      });
+    } else {
+      // idle — let API decide: ask for content or create directly
+      callNoteApi(text).then(({ action, message }) => {
+        removeNotePageTypingIndicator();
+
+        if (action === 'ask') {
+          // AI asks user for content
+          addNotePageLabelRow();
+          addNotePageAiMessage(message, false);
+          noteFlowState = 'waiting_content';
+        } else if (action === 'create') {
+          // Content provided directly — create note card
+          const noteData = {
+            title: 'Untitled',
+            content: text,
+            createdAt: Date.now()
+          };
+          if (pendingImages.length > 0) {
+            noteData.image = pendingImages[0];
+            noteData.detailImage = pendingImages[0];
+            noteData.images = [...pendingImages];
+            pendingImages = [];
+            renderInputImages();
+          }
+          createdNotes.push(noteData);
+
+          addNotePageLabelRow();
+          addNotePageAiMessage(message, false);
+          pendingNoteCardEl = addNotePageCard(noteData);
+          pendingNoteData = noteData;
+          noteFlowState = 'waiting_title';
+        } else {
+          // General chat
+          addNotePageLabelRow();
+          addNotePageAiMessage(message, false);
+        }
+      });
     }
   }
 
   // Render note cards in main chat after closing note page
-  function renderNotesInChat(notes) {
+  function renderNotesInChat(notes, customIntro) {
     const count = notes.length;
-    const summaryText = `You have ${count} note${count > 1 ? 's' : ''}. 📝`;
+    const summaryText = customIntro || `You have ${count} note${count > 1 ? 's' : ''}. 📝`;
 
     const msgEl = document.createElement('div');
     msgEl.className = 'chat-message ai-message schedule-card-message';
