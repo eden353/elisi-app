@@ -63,6 +63,10 @@ Then, when the user provides the actual note content in their next message, gene
 If the user provides both the intent and content together in one message (e.g. "帮我记一下明天要买牛奶"), generate the note_card JSON directly without asking.
 If the user sends an image and asks to create a note from it, describe the image content and generate the note_card JSON with the description as the content.
 
+When the user asks to modify/update the most recently created note (e.g. "把标题改成xxx", "内容改成xxx", "change the title", "update the content"), respond with ONLY this JSON:
+{"type":"note_update","introText":"A brief confirmation message","title":"optional new title","content":"optional new content"}
+Only include the "title" and/or "content" fields that need to change.
+
 For all other conversations, respond naturally as a friendly assistant. Do NOT output JSON for general chat. Maintain conversation context and respond naturally based on the ongoing dialogue.`;
 
   // DOM elements
@@ -1136,7 +1140,7 @@ For all other conversations, respond naturally as a friendly assistant. Do NOT o
         cardData = JSON.parse(cleaned);
       } catch (e) {
         // Try to find a JSON object embedded in the text
-        const jsonMatch = reply.match(/\{[\s\S]*"type"\s*:\s*"(schedule_card|planner_card|note_card)"[\s\S]*\}/);
+        const jsonMatch = reply.match(/\{[\s\S]*"type"\s*:\s*"(schedule_card|planner_card|note_card|note_update)"[\s\S]*\}/);
         if (jsonMatch) {
           try {
             cardData = JSON.parse(jsonMatch[0]);
@@ -1150,7 +1154,7 @@ For all other conversations, respond naturally as a friendly assistant. Do NOT o
       function extractNaturalText(raw) {
         return raw
           .replace(/```json\n?[\s\S]*?```/g, '')
-          .replace(/\{[\s\S]*"type"\s*:\s*"(schedule_card|planner_card|note_card)"[\s\S]*\}/g, '')
+          .replace(/\{[\s\S]*"type"\s*:\s*"(schedule_card|planner_card|note_card|note_update)"[\s\S]*\}/g, '')
           .trim();
       }
 
@@ -1175,6 +1179,17 @@ For all other conversations, respond naturally as a friendly assistant. Do NOT o
         renderNotesInChat([noteData], intro);
         createdNotes.push(noteData);
         syncedNoteCount = createdNotes.length;
+      } else if (cardData?.type === 'note_update') {
+        const lastNote = createdNotes[createdNotes.length - 1];
+        if (lastNote) {
+          if (cardData.title) lastNote.title = cardData.title;
+          if (cardData.content) lastNote.content = cardData.content;
+          refreshNoteCards();
+        }
+        const text = extractNaturalText(reply);
+        const intro = cardData.introText || text || 'Note updated! ✅';
+        const msgEl = appendMessage('', 'ai');
+        typewriterEffect(msgEl.querySelector('.message-bubble'), intro);
       } else {
         const msgEl = appendMessage('', 'ai');
         typewriterEffect(msgEl.querySelector('.message-bubble'), reply);
@@ -1692,10 +1707,14 @@ To help you distinguish:
 - If intent + content together: "帮我记一下明天要买牛奶" → This contains actual content, directly create with a title
 - Image messages: user sends an image → Analyze it and directly create a note with a descriptive title and content based on the image
 
+When the user asks to modify/update the most recently created note (e.g. "把标题改成xxx", "内容加上xxx", "change the title to xxx", "update the content"), use the "update" action. Only include the fields that need to change (title and/or content).
+
 You must output ONLY a JSON object (no other text) in this format to indicate your decision:
 {"action":"ask","message":"your question asking for content"}
 or
 {"action":"create","message":"your brief confirmation","title":"a short title under 30 chars","content":"the optimized/polished note content"}
+or
+{"action":"update","message":"your brief confirmation","title":"optional new title","content":"optional new content"}
 or
 {"action":"chat","message":"your natural response"}
 
@@ -1829,6 +1848,15 @@ IMPORTANT for "create" action:
           addNotePageLabelRow();
           addNotePageAiMessage(message, false);
           addNotePageCard(noteData);
+        } else if (action === 'update') {
+          const lastNote = createdNotes[createdNotes.length - 1];
+          if (lastNote) {
+            if (title) lastNote.title = title;
+            if (content) lastNote.content = content;
+            refreshNoteCards();
+          }
+          addNotePageLabelRow();
+          addNotePageAiMessage(message, false);
         } else {
           addNotePageLabelRow();
           addNotePageAiMessage(message, false);
@@ -1860,6 +1888,16 @@ IMPORTANT for "create" action:
           addNotePageLabelRow();
           addNotePageAiMessage(message, false);
           addNotePageCard(noteData);
+          noteFlowState = 'idle';
+        } else if (action === 'update') {
+          const lastNote = createdNotes[createdNotes.length - 1];
+          if (lastNote) {
+            if (title) lastNote.title = title;
+            if (content) lastNote.content = content;
+            refreshNoteCards();
+          }
+          addNotePageLabelRow();
+          addNotePageAiMessage(message, false);
           noteFlowState = 'idle';
         } else {
           addNotePageLabelRow();
