@@ -1,9 +1,6 @@
 (() => {
   const API_BASE_URL = 'https://api.vectorengine.ai';
-  const API_KEY = localStorage.getItem('ai_api_key') || '';
-  if (!API_KEY) {
-    alert('请先设置 API Key。\n\n请在浏览器控制台执行：\nlocalStorage.setItem("ai_api_key", "你的API Key")\n\n设置后刷新页面即可。');
-  }
+  let API_KEY = localStorage.getItem('ai_api_key') || '';
   const API_MODEL = 'gemini-2.5-pro';
 
   // --- Touch-scroll guard: prevent accidental taps while scrolling ---
@@ -351,7 +348,8 @@ For all other conversations, respond naturally as a friendly assistant. Do NOT o
   apiSaveBtn.addEventListener('click', () => {
     const key = apiKeyInput.value.trim();
     if (key) {
-      localStorage.setItem('elisi_api_key', key);
+      localStorage.setItem('ai_api_key', key);
+      API_KEY = key;
       apiModal.classList.remove('active');
       // Retry sending if there was a pending message
       const lastUserMsg = conversationHistory[conversationHistory.length - 1];
@@ -374,6 +372,11 @@ For all other conversations, respond naturally as a friendly assistant. Do NOT o
   });
   logo.addEventListener('mouseup', () => clearTimeout(pressTimer));
   logo.addEventListener('mouseleave', () => clearTimeout(pressTimer));
+
+  // Auto show API key modal if not set
+  if (!API_KEY) {
+    showApiModal();
+  }
   logo.addEventListener('touchstart', () => {
     pressTimer = setTimeout(showApiModal, 800);
   });
@@ -1647,23 +1650,26 @@ CRITICAL RULES:
 
 IMPORTANT BEHAVIOR:
 - When the user expresses intent to create a note (e.g. "新建笔记", "记录一下", "create a note", "I want to write something down"), DO NOT create the note yet. Instead, ask what content they want to record. Respond naturally like: "好的，你想记录什么内容呢？😊"
-- When the user provides actual note content (not just an intent to create), respond by confirming the note was recorded and suggest a short title for it.
-- When the user provides a title or confirms, respond with a brief friendly confirmation.
-- For general conversation, respond naturally.
+- When the user provides actual note content (not just an intent to create), directly create the note with a suitable title and optimized content. Respond with a brief confirmation.
+- For general conversation or requests to modify existing notes, respond naturally.
 
 To help you distinguish:
 - Intent messages: "新建笔记", "帮我记一下", "create a note", "I want to take a note" → Ask for content, do NOT create card
-- Content messages: actual text content like "明天要买牛奶", "Meeting notes: discussed Q3 targets" → This IS the note content, confirm and suggest title
-- If intent + content together: "帮我记一下明天要买牛奶" → This contains actual content, confirm and suggest title
+- Content messages: actual text content like "明天要买牛奶", "Meeting notes: discussed Q3 targets" → This IS the note content, directly create with a title
+- If intent + content together: "帮我记一下明天要买牛奶" → This contains actual content, directly create with a title
 
 You must output ONLY a JSON object (no other text) in this format to indicate your decision:
 {"action":"ask","message":"your question asking for content"}
 or
-{"action":"create","message":"your confirmation and title suggestion"}
+{"action":"create","message":"your brief confirmation","title":"a short title under 30 chars","content":"the optimized/polished note content"}
 or
-{"action":"title_confirmed","message":"your confirmation"}
-or
-{"action":"chat","message":"your natural response"}`;
+{"action":"chat","message":"your natural response"}
+
+IMPORTANT for "create" action:
+- The "title" field should be a short, descriptive title (under 30 characters) for the note.
+- The "content" field should contain the full, polished note content (optimized, well-organized, and improved based on the user's input).
+- If the user asks you to help write, optimize, or enhance the note, put the improved content in the "content" field.
+- If the user just provides raw content without asking for optimization, still clean it up slightly and put it in the "content" field.`;
 
   async function callNoteApi(text) {
     const url = `${API_BASE_URL}/v1/chat/completions`;
@@ -1705,7 +1711,7 @@ or
       }
 
       if (parsed && parsed.action && parsed.message) {
-        return { action: parsed.action, message: parsed.message };
+        return { action: parsed.action, message: parsed.message, content: parsed.content || null, title: parsed.title || null };
       }
       // Fallback: treat as plain chat
       return { action: 'chat', message: reply };
@@ -1714,10 +1720,8 @@ or
     }
   }
 
-  // States: 'idle' | 'waiting_content' | 'waiting_title'
+  // States: 'idle' | 'waiting_content'
   let noteFlowState = 'idle';
-  let pendingNoteData = null;
-  let pendingNoteCardEl = null;
 
   function sendNoteMessage() {
     const text = notePageInput.value.trim();
@@ -1741,62 +1745,46 @@ or
     addNotePageTypingIndicator();
     notePageContent.scrollTop = notePageContent.scrollHeight;
 
-    if (noteFlowState === 'waiting_title') {
-      // User is providing a title
-      pendingNoteData.title = text;
-      if (pendingNoteCardEl) {
-        pendingNoteCardEl.querySelector('.note-card-item-title').textContent = text;
-      }
-
-      callNoteApi(text).then(({ message }) => {
-        removeNotePageTypingIndicator();
-        addNotePageLabelRow();
-        addNotePageAiMessage(message, false);
-        addNotePageCard(pendingNoteData);
-
-        noteFlowState = 'idle';
-        pendingNoteData = null;
-        pendingNoteCardEl = null;
-      });
-    } else if (noteFlowState === 'waiting_content') {
+    if (noteFlowState === 'waiting_content') {
       // User is providing actual note content after being asked
-      const noteData = {
-        title: 'Untitled',
-        content: text,
-        createdAt: Date.now()
-      };
-      if (pendingImages.length > 0) {
-        noteData.image = pendingImages[0];
-        noteData.detailImage = pendingImages[0];
-        noteData.images = [...pendingImages];
-        pendingImages = [];
-        renderInputImages();
-      }
-      createdNotes.push(noteData);
-
-      callNoteApi(text).then(({ message }) => {
+      callNoteApi(text).then(({ action, message, content, title }) => {
         removeNotePageTypingIndicator();
-        addNotePageLabelRow();
-        addNotePageAiMessage(message, false);
-        pendingNoteCardEl = addNotePageCard(noteData);
-        pendingNoteData = noteData;
-        noteFlowState = 'waiting_title';
+        if (action === 'create') {
+          const noteData = {
+            title: title || 'Untitled',
+            content: content || text,
+            createdAt: Date.now()
+          };
+          if (pendingImages.length > 0) {
+            noteData.image = pendingImages[0];
+            noteData.detailImage = pendingImages[0];
+            noteData.images = [...pendingImages];
+            pendingImages = [];
+            renderInputImages();
+          }
+          createdNotes.push(noteData);
+          addNotePageLabelRow();
+          addNotePageAiMessage(message, false);
+          addNotePageCard(noteData);
+        } else {
+          addNotePageLabelRow();
+          addNotePageAiMessage(message, false);
+        }
+        noteFlowState = 'idle';
       });
     } else {
       // idle — let API decide: ask for content or create directly
-      callNoteApi(text).then(({ action, message }) => {
+      callNoteApi(text).then(({ action, message, content, title }) => {
         removeNotePageTypingIndicator();
 
         if (action === 'ask') {
-          // AI asks user for content
           addNotePageLabelRow();
           addNotePageAiMessage(message, false);
           noteFlowState = 'waiting_content';
         } else if (action === 'create') {
-          // Content provided directly — create note card
           const noteData = {
-            title: 'Untitled',
-            content: text,
+            title: title || 'Untitled',
+            content: content || text,
             createdAt: Date.now()
           };
           if (pendingImages.length > 0) {
@@ -1810,11 +1798,9 @@ or
 
           addNotePageLabelRow();
           addNotePageAiMessage(message, false);
-          pendingNoteCardEl = addNotePageCard(noteData);
-          pendingNoteData = noteData;
-          noteFlowState = 'waiting_title';
+          addNotePageCard(noteData);
+          noteFlowState = 'idle';
         } else {
-          // General chat
           addNotePageLabelRow();
           addNotePageAiMessage(message, false);
         }
